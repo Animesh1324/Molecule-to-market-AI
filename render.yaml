@@ -1,32 +1,45 @@
+databases:
+  # Managed Postgres so projects and brand plans survive redeploys. On the free
+  # SQLite fallback the container filesystem is ephemeral and every deploy or
+  # restart wipes all saved work.
+  - name: pharma-brandplan-db
+    databaseName: brandplan
+    plan: free
+
 services:
   - type: web
     name: pharma-brandplan-backend
     env: python
     rootDir: backend
     plan: free
-    buildCommand: pip install --upgrade pip && pip install -r requirements.txt
+    buildCommand: pip install --upgrade pip && pip install -r requirements.txt psycopg2-binary==2.9.10
     startCommand: uvicorn app.main:app --host 0.0.0.0 --port $PORT
+    healthCheckPath: /health
     envVars:
       - key: APP_ENV
         value: production
-      - key: PORT
-        value: 8000
       - key: CORS_ORIGINS
         value: https://pharma-brandplan-frontend.onrender.com
       - key: DATABASE_URL
-        sync: false
-      - key: OPENAI_API_KEY
-        sync: false
+        fromDatabase:
+          name: pharma-brandplan-db
+          property: connectionString
+      - key: PYTHON_VERSION
+        value: "3.12.6"
 
   - type: web
     name: pharma-brandplan-frontend
     env: node
     rootDir: frontend
     plan: free
-    buildCommand: npm install && npm run build
+    buildCommand: npm ci && npm run build
     startCommand: npm run start -- --hostname 0.0.0.0 --port $PORT
     envVars:
+      # NEXT_PUBLIC_* is inlined at build time, so this must be set before the
+      # build step runs, not just at runtime.
       - key: NEXT_PUBLIC_API_BASE
         value: https://pharma-brandplan-backend.onrender.com
       - key: NEXT_PUBLIC_APP_ENV
         value: production
+      - key: NODE_VERSION
+        value: "20"

@@ -1,4 +1,3 @@
-version: '3.8'
 services:
   backend:
     build:
@@ -6,18 +5,28 @@ services:
       dockerfile: backend/Dockerfile
     ports:
       - "8000:8000"
-    volumes:
-      - ./backend:/app
     environment:
+      - APP_ENV=development
+      - PORT=8000
+      - CORS_ORIGINS=http://localhost:3000,http://127.0.0.1:3000
+      # Leave DATABASE_URL unset to use the SQLite file on the named volume.
       - PYTHONUNBUFFERED=1
+    volumes:
+      # Persist the SQLite database across container rebuilds. Without this,
+      # every `docker compose up --build` wipes all projects and brand plans.
+      - backend_data:/app/app/data
 
   frontend:
     build:
       context: .
       dockerfile: frontend/Dockerfile
+      args:
+        NEXT_PUBLIC_API_BASE: http://localhost:8000
+        NEXT_PUBLIC_APP_ENV: development
     ports:
       - "3000:3000"
-    volumes:
-      - ./frontend:/app
-    environment:
-      - NODE_ENV=development
+    depends_on:
+      - backend
+
+volumes:
+  backend_data:

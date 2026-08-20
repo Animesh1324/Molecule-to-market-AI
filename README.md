@@ -52,14 +52,17 @@ Backend:
 
 - `APP_ENV` (`development`/`production`)
 - `PORT` (default `8000`)
-- `CORS_ORIGINS` (comma-separated allowed frontend origins)
-- `DATABASE_URL` (optional override for DB location)
-- `OPENAI_API_KEY` (optional, for future live AI integrations)
+- `CORS_ORIGINS` (comma-separated allowed frontend origins). **Must be set in production** — the localhost fallback will block your deployed frontend.
+- `DATABASE_URL` (optional). Blank uses the local SQLite file at `backend/app/data/brandplan.db`. Set a PostgreSQL URL for any host with an ephemeral filesystem, or all saved projects and brand plans are lost on restart.
 
 Frontend:
 
 - `NEXT_PUBLIC_API_BASE` (default `http://localhost:8000`)
 - `NEXT_PUBLIC_APP_ENV`
+
+`NEXT_PUBLIC_*` values are inlined into the client bundle **at build time**, not
+read at runtime. They must be set before `npm run build` runs — the Docker image
+takes them as build args.
 
 ## Core workflows
 
@@ -73,13 +76,18 @@ Frontend:
 
 ```bash
 cd backend
+python3 -m venv .venv
 . .venv/bin/activate
+pip install -r requirements-dev.txt
 pytest -q
 
 cd ../frontend
-npm test -- --runInBand
+npm test
 npm run build
 ```
+
+Tests run against a temporary database (see `backend/tests/conftest.py`), so
+they never touch your working `brandplan.db`.
 
 ## Docker
 
@@ -95,36 +103,33 @@ docker compose up --build
 
 ## Staging deployment (Render)
 
-This repo includes a Render deployment blueprint in [render.yaml](render.yaml). It is ready for a manual staging setup on Render.
+The blueprint in [render.yaml](render.yaml) provisions a managed Postgres
+instance plus both services. Connect the repo in Render and deploy the
+blueprint; the backend's `DATABASE_URL` is wired to the database automatically.
 
-1. Create a new Render account and connect this GitHub repository.
-2. In the Render dashboard, create the backend service using the `backend` root directory and the Python environment.
-3. Set the following environment variables for the backend:
+After the first deploy, update these to your real service hostnames:
 
-```bash
-APP_ENV=production
-PORT=8000
-CORS_ORIGINS=https://<frontend-service-name>.onrender.com
-DATABASE_URL=
-OPENAI_API_KEY=
-```
+- backend `CORS_ORIGINS` → your frontend URL
+- frontend `NEXT_PUBLIC_API_BASE` → your backend URL
 
-4. Create the frontend service using the `frontend` root directory and the Node environment.
-5. Set the frontend environment variable:
-
-```bash
-NEXT_PUBLIC_API_BASE=https://<backend-service-name>.onrender.com
-NEXT_PUBLIC_APP_ENV=production
-```
-
-6. Redeploy both services.
+Then redeploy the frontend, since `NEXT_PUBLIC_API_BASE` is baked in at build time.
 
 ## Deployment notes
 
-- Use a managed PostgreSQL or SQLite file for production if the project is expanded beyond local development.
+- Set `DATABASE_URL` to managed PostgreSQL for any real deployment. The SQLite fallback lives on the container filesystem and is wiped on every restart.
 - Keep secrets in the deployment platform's secrets manager instead of committing them.
 - Set `CORS_ORIGINS` to the exact production frontend host(s) rather than wildcard origins.
 - Use a production build of the Next.js app and run it behind a reverse proxy or container orchestration layer.
+
+## Known limitations
+
+Read these before using output in a real brand plan.
+
+- **No authentication.** Every endpoint is open. Anyone who can reach the URL can read, create, and overwrite every project and brand plan. Put it behind SSO, a VPN, or an authenticating proxy before exposing it beyond your own machine.
+- **The brand plan generator is a template, not an AI.** `ai_orchestrator.py` fills a fixed 12-section scaffold with your molecule and indication. It deliberately emits `SOURCE_NEEDED` placeholders instead of claims. No model is called; `services/prompts.py` is an unused prompt library kept for future work.
+- **Curated depth covers four molecules.** Empagliflozin, Semaglutide, Pembrolizumab, and Apixaban have hand-checked evidence, trials, and label data. Other molecules fall back to live PubChem/PubMed/ClinicalTrials.gov lookups, which return bibliographic records rather than claim-ready endpoint data. Competitor landscapes exist only for Empagliflozin; others return an explicit gap.
+- **Forecast defaults are planning heuristics, not market research.** Prescriber pool sizes, regional revenue splits, scenario uptake multipliers, and the 6.8% therapy CAGR are illustrative defaults. Replace them with sourced assumptions before the numbers inform a decision.
+- **Nothing here is MLR-approved.** `mlr_compliance_signoff_ready` is always `false`. Every claim needs evidence mapping, label verification, and fair-balance review before external use.
 
 ## CI
 

@@ -1,8 +1,9 @@
 import logging
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 
 from .api import (
     brand_plan,
@@ -18,8 +19,12 @@ from .api import (
     trials,
 )
 from .config import get_settings
-from .db.database import init_db
+from .db.database import init_db, db_healthy
 
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s %(levelname)s %(name)s %(message)s",
+)
 logger = logging.getLogger("pharma_brandplan")
 settings = get_settings()
 
@@ -27,6 +32,11 @@ settings = get_settings()
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     init_db()
+    if settings["app_env"] == "production" and not settings["cors_origins_configured"]:
+        logger.warning(
+            "CORS_ORIGINS is not set in production; falling back to localhost origins. "
+            "The deployed frontend will be blocked until this is configured."
+        )
     logger.info("Application startup complete for env=%s", settings["app_env"])
     yield
 
@@ -40,11 +50,28 @@ app = FastAPI(
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=settings["cors_origins"] or ["http://localhost:3000", "http://127.0.0.1:3000"],
+    allow_origins=settings["cors_origins"],
     allow_credentials=True,
     allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
     allow_headers=["*"],
 )
+
+@app.exception_handler(ValueError)
+async def value_error_handler(request: Request, exc: ValueError):
+    """Surface invalid modelling inputs as 400s rather than opaque 500s."""
+    logger.warning("Invalid input on %s: %s", request.url.path, exc)
+    return JSONResponse(status_code=400, content={"detail": str(exc)})
+
+
+@app.exception_handler(Exception)
+async def unhandled_exception_handler(request: Request, exc: Exception):
+    """Log the failure server-side and return a generic message to the caller."""
+    logger.exception("Unhandled error on %s", request.url.path)
+    return JSONResponse(
+        status_code=500,
+        content={"detail": "Internal server error. The incident has been logged."},
+    )
+
 
 app.include_router(projects.router)
 app.include_router(molecules.router)
@@ -72,9 +99,13 @@ async def root():
 
 
 @app.get("/health")
-async def health():
+async def health(response: Response):
+    """Report real readiness so a platform health check can act on it."""
+    db_ok = db_healthy()
+    if not db_ok:
+        response.status_code = 503
     return {
-        "status": "healthy",
+        "status": "healthy" if db_ok else "degraded",
         "environment": settings["app_env"],
-        "database": "connected",
+        "database": "connected" if db_ok else "unavailable",
     }

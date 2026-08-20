@@ -1,12 +1,16 @@
-fastapi
-uvicorn
-sqlalchemy>=1.4
-pydantic
-python-dotenv
-python-multipart
-python-docx
-python-pptx
-openpyxl
-requests
-pytest
-httpx
+# Pinned to the versions this app is tested against. Unpinned ranges meant a
+# rebuild months from now could pull a breaking major release into production.
+fastapi==0.128.8
+uvicorn==0.39.0
+sqlalchemy==2.0.52
+pydantic==2.13.4
+python-dotenv==1.2.1
+python-multipart==0.0.20
+python-docx==1.2.0
+python-pptx==1.0.2
+openpyxl==3.1.5
+requests==2.32.5
+httpx==0.28.1
+
+# Optional: required only when DATABASE_URL points at PostgreSQL.
+# psycopg2-binary==2.9.10

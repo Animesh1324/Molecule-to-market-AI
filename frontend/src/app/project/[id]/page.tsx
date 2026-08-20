@@ -88,6 +88,8 @@ export default function ProjectWorkspacePage() {
 
   // Loading states
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [forecastError, setForecastError] = useState<string | null>(null);
 
   // Interactive Forecasting Form State
   const [prevalenceRate, setPrevalenceRate] = useState(0.105);
@@ -165,6 +167,11 @@ export default function ProjectWorkspacePage() {
         setAuditTrail(audData);
       } catch (err) {
         console.error('Error loading project data:', err);
+        setLoadError(
+          err instanceof Error && err.message
+            ? err.message
+            : 'Could not reach the BrandPlan API.'
+        );
       } finally {
         setLoading(false);
       }
@@ -175,6 +182,7 @@ export default function ProjectWorkspacePage() {
   // Recalculate forecast on slider change
   const handleRecalculateForecast = async () => {
     if (!project) return;
+    setForecastError(null);
     try {
       const updated = await fetchMarketForecast({
         therapy_area: project.therapy_area,
@@ -188,6 +196,9 @@ export default function ProjectWorkspacePage() {
       setForecast(updated);
     } catch (e) {
       console.error(e);
+      setForecastError(
+        e instanceof Error && e.message ? e.message : 'Could not recalculate the forecast.'
+      );
     }
   };
 
@@ -204,13 +215,49 @@ export default function ProjectWorkspacePage() {
     { id: 'reports', label: '10. Report Center & MLR', icon: Download }
   ];
 
-  if (loading || !project) {
+  if (loading) {
     return (
       <div className="min-h-screen bg-slate-950 flex flex-col">
         <Navbar />
         <div className="flex-1 flex flex-col items-center justify-center p-8 space-y-4">
           <div className="w-12 h-12 rounded-full border-4 border-brand-500 border-t-transparent animate-spin"></div>
           <p className="text-slate-400 font-mono text-sm">Synthesizing scientific and commercial intelligence across 10 modules...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (loadError || !project) {
+    return (
+      <div className="min-h-screen bg-slate-950 flex flex-col">
+        <Navbar />
+        <div className="flex-1 flex flex-col items-center justify-center p-8 space-y-5 text-center">
+          <div className="w-12 h-12 rounded-full bg-red-500/10 border border-red-500/40 flex items-center justify-center">
+            <AlertTriangle className="w-6 h-6 text-red-400" />
+          </div>
+          <div className="space-y-2 max-w-lg">
+            <h2 className="text-xl font-bold text-white">Could not load this brand initiative</h2>
+            <p className="text-slate-400 text-sm">
+              {loadError || 'This project could not be found.'}
+            </p>
+            <p className="text-slate-500 font-mono text-xs">
+              Check that the API is running and that NEXT_PUBLIC_API_BASE points to it.
+            </p>
+          </div>
+          <div className="flex gap-3">
+            <button
+              onClick={() => window.location.reload()}
+              className="px-4 py-2 rounded-lg bg-brand-500 hover:bg-brand-400 text-white text-sm font-semibold transition-colors"
+            >
+              Retry
+            </button>
+            <Link
+              href="/"
+              className="px-4 py-2 rounded-lg border border-slate-700 hover:border-slate-500 text-slate-300 text-sm font-semibold transition-colors"
+            >
+              Back to Projects Hub
+            </Link>
+          </div>
         </div>
       </div>
     );
@@ -1045,10 +1092,18 @@ export default function ProjectWorkspacePage() {
                 </div>
               </div>
 
-              <div className="pt-2 flex justify-end">
+              <div className="pt-2 flex justify-between items-center gap-4">
+                {forecastError ? (
+                  <p className="flex items-center gap-1.5 text-xs text-red-400">
+                    <AlertTriangle className="w-3.5 h-3.5 shrink-0" />
+                    <span>{forecastError}</span>
+                  </p>
+                ) : (
+                  <span />
+                )}
                 <button
                   onClick={handleRecalculateForecast}
-                  className="flex items-center space-x-1.5 px-4 py-2 rounded-xl bg-brand-600 hover:bg-brand-500 text-white text-xs font-semibold transition shadow-md shadow-brand-500/20"
+                  className="flex items-center space-x-1.5 px-4 py-2 rounded-xl bg-brand-600 hover:bg-brand-500 text-white text-xs font-semibold transition shadow-md shadow-brand-500/20 shrink-0"
                 >
                   <RefreshCw className="w-3.5 h-3.5" />
                   <span>Update Forecast Model</span>

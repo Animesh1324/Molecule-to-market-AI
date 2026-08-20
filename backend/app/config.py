@@ -18,14 +18,15 @@ def _split_csv(value: Optional[str], default: str = "") -> List[str]:
 
 @lru_cache(maxsize=1)
 def get_settings() -> dict:
+    configured = os.getenv("CORS_ORIGINS")
     origins = _split_csv(
-        os.getenv("CORS_ORIGINS"),
+        configured,
         "http://localhost:3000,http://127.0.0.1:3000",
     )
     return {
         "app_env": os.getenv("APP_ENV", "development").strip().lower(),
         "port": int(os.getenv("PORT", "8000")),
         "cors_origins": origins,
+        "cors_origins_configured": bool(configured and configured.strip()),
         "database_url": os.getenv("DATABASE_URL", "").strip(),
-        "openai_api_key": os.getenv("OPENAI_API_KEY", "").strip(),
     }

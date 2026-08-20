@@ -15,15 +15,38 @@ import {
 
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE || 'http://localhost:8000';
 
+/**
+ * Raise an Error carrying the API's own `detail` message.
+ *
+ * The backend validates forecast inputs and returns a specific reason; a
+ * generic "Failed to fetch" would hide it and leave the user guessing which
+ * assumption was rejected.
+ */
+async function apiError(res: Response, fallback: string): Promise<Error> {
+  try {
+    const body = await res.json();
+    const detail = body?.detail;
+    if (typeof detail === 'string') return new Error(detail);
+    if (Array.isArray(detail) && detail.length > 0) {
+      const first = detail[0];
+      const field = Array.isArray(first?.loc) ? first.loc[first.loc.length - 1] : null;
+      if (first?.msg) return new Error(field ? `${field}: ${first.msg}` : first.msg);
+    }
+  } catch {
+    // Response had no JSON body; fall through to the generic message.
+  }
+  return new Error(`${fallback} (HTTP ${res.status})`);
+}
+
 export async function fetchProjects(): Promise<Project[]> {
   const res = await fetch(`${API_BASE}/api/projects`, { cache: 'no-store' });
-  if (!res.ok) throw new Error('Failed to fetch projects');
+  if (!res.ok) throw await apiError(res, 'Failed to fetch projects');
   return res.json();
 }
 
 export async function fetchProjectById(id: string): Promise<Project> {
   const res = await fetch(`${API_BASE}/api/projects/${id}`, { cache: 'no-store' });
-  if (!res.ok) throw new Error('Project not found');
+  if (!res.ok) throw await apiError(res, 'Project not found');
   return res.json();
 }
 
@@ -33,53 +56,53 @@ export async function createProject(data: Partial<Project>): Promise<Project> {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(data),
   });
-  if (!res.ok) throw new Error('Failed to create project');
+  if (!res.ok) throw await apiError(res, 'Failed to create project');
   return res.json();
 }
 
 export async function fetchMoleculeProfile(moleculeName: string): Promise<MoleculeProfile> {
   const res = await fetch(`${API_BASE}/api/molecules/search?name=${encodeURIComponent(moleculeName)}`);
-  if (!res.ok) throw new Error('Failed to fetch molecule profile');
+  if (!res.ok) throw await apiError(res, 'Failed to fetch molecule profile');
   return res.json();
 }
 
 export async function fetchEvidencePapers(molecule: string, indication?: string): Promise<ResearchPaper[]> {
   const url = `${API_BASE}/api/evidence/papers?molecule=${encodeURIComponent(molecule)}${indication ? `&indication=${encodeURIComponent(indication)}` : ''}`;
   const res = await fetch(url);
-  if (!res.ok) throw new Error('Failed to fetch research papers');
+  if (!res.ok) throw await apiError(res, 'Failed to fetch research papers');
   return res.json();
 }
 
 export async function fetchClaimMappings(molecule: string, indication?: string): Promise<ClaimEvidenceMapping[]> {
   const url = `${API_BASE}/api/evidence/claims?molecule=${encodeURIComponent(molecule)}${indication ? `&indication=${encodeURIComponent(indication)}` : ''}`;
   const res = await fetch(url);
-  if (!res.ok) throw new Error('Failed to fetch claim mappings');
+  if (!res.ok) throw await apiError(res, 'Failed to fetch claim mappings');
   return res.json();
 }
 
 export async function fetchClinicalTrials(molecule: string, indication?: string): Promise<ClinicalTrialLandscape> {
   const url = `${API_BASE}/api/trials/landscape?molecule=${encodeURIComponent(molecule)}${indication ? `&indication=${encodeURIComponent(indication)}` : ''}`;
   const res = await fetch(url);
-  if (!res.ok) throw new Error('Failed to fetch clinical trials');
+  if (!res.ok) throw await apiError(res, 'Failed to fetch clinical trials');
   return res.json();
 }
 
 export async function fetchRegulatoryLabels(molecule: string): Promise<RegulatoryIntelligence> {
   const res = await fetch(`${API_BASE}/api/regulatory/labels?molecule=${encodeURIComponent(molecule)}`);
-  if (!res.ok) throw new Error('Failed to fetch regulatory labels');
+  if (!res.ok) throw await apiError(res, 'Failed to fetch regulatory labels');
   return res.json();
 }
 
 export async function fetchTrademarkAnalysis(molecule: string, therapyArea: string = 'Cardiometabolic'): Promise<TrademarkIntelligence> {
   const res = await fetch(`${API_BASE}/api/trademark/analyze?molecule=${encodeURIComponent(molecule)}&therapy_area=${encodeURIComponent(therapyArea)}`);
-  if (!res.ok) throw new Error('Failed to fetch trademark analysis');
+  if (!res.ok) throw await apiError(res, 'Failed to fetch trademark analysis');
   return res.json();
 }
 
 export async function fetchCompetitors(molecule: string, indication?: string): Promise<CompetitorIntelligence> {
   const url = `${API_BASE}/api/competitors/landscape?molecule=${encodeURIComponent(molecule)}${indication ? `&indication=${encodeURIComponent(indication)}` : ''}`;
   const res = await fetch(url);
-  if (!res.ok) throw new Error('Failed to fetch competitor landscape');
+  if (!res.ok) throw await apiError(res, 'Failed to fetch competitor landscape');
   return res.json();
 }
 
@@ -104,7 +127,7 @@ export async function fetchMarketForecast(params: {
   if (params.annual_cost_per_patient_usd !== undefined) q.append('annual_cost_per_patient_usd', params.annual_cost_per_patient_usd.toString());
 
   const res = await fetch(`${API_BASE}/api/forecasting/model?${q.toString()}`);
-  if (!res.ok) throw new Error('Failed to fetch market forecast');
+  if (!res.ok) throw await apiError(res, 'Failed to fetch market forecast');
   return res.json();
 }
 
@@ -126,7 +149,7 @@ export async function fetchBrandPlan(params: {
   if (params.brand_name) q.append('brand_name', params.brand_name);
 
   const res = await fetch(`${API_BASE}/api/brand-plan/generate?${q.toString()}`);
-  if (!res.ok) throw new Error('Failed to generate brand plan');
+  if (!res.ok) throw await apiError(res, 'Failed to generate brand plan');
   return res.json();
 }
 
@@ -136,13 +159,13 @@ export async function fetchCreativeAssets(molecule: string, brand_name?: string,
   if (indication) q.append('indication', indication);
 
   const res = await fetch(`${API_BASE}/api/assets/generate?${q.toString()}`);
-  if (!res.ok) throw new Error('Failed to generate creative assets');
+  if (!res.ok) throw await apiError(res, 'Failed to generate creative assets');
   return res.json();
 }
 
 export async function fetchAuditTrail(): Promise<MLRAuditEntry[]> {
   const res = await fetch(`${API_BASE}/api/reports/audit-trail`);
-  if (!res.ok) throw new Error('Failed to fetch MLR audit trail');
+  if (!res.ok) throw await apiError(res, 'Failed to fetch MLR audit trail');
   return res.json();
 }
 

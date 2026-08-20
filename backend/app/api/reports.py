@@ -1,3 +1,6 @@
+import re
+from urllib.parse import quote
+
 from fastapi import APIRouter, Query, Response, HTTPException
 from typing import List
 from datetime import datetime
@@ -9,6 +12,26 @@ from ..services.export_service import generate_brand_plan_docx, generate_pitch_d
 from ..db import database as db
 
 router = APIRouter(prefix="/api/reports", tags=["Report Center & MLR Audit"])
+
+
+def _content_disposition(brand_name: str, suffix: str) -> str:
+    """Build a Content-Disposition header that survives any brand name.
+
+    Brand names reach this endpoint straight from user input, so they may carry
+    non-Latin-1 characters (Devanagari, curly quotes pasted from Word) that
+    cannot be encoded into an HTTP header, or path/CRLF characters that would
+    let a caller steer the download filename. The ASCII fallback keeps old
+    clients working; the RFC 5987 form carries the original name.
+    """
+    # Strip only what is unsafe in a filename or header (path separators,
+    # reserved characters, control characters) so non-Latin scripts survive.
+    stem = re.sub(r"[\\/:*?\"<>|\x00-\x1f\x7f]", "", brand_name).strip().replace(" ", "_")
+    stem = re.sub(r"\.{2,}", ".", stem).strip("._") or "BrandPlan"
+    stem = stem[:80]
+
+    full = f"{stem}_{suffix}"
+    ascii_fallback = full.encode("ascii", "ignore").decode("ascii").strip("._") or f"Export_{suffix}"
+    return f"attachment; filename=\"{ascii_fallback}\"; filename*=UTF-8''{quote(full)}"
 
 
 @router.get("/audit-trail", response_model=List[MLRAuditEntry])
@@ -63,12 +86,11 @@ async def export_brand_plan_docx(
         indication=indication
     )
     buffer = generate_brand_plan_docx(plan)
-    filename = f"{brand_name.replace(' ', '_')}_Brand_Plan.docx"
-    
+
     return Response(
         content=buffer.getvalue(),
         media_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-        headers={"Content-Disposition": f"attachment; filename={filename}"}
+        headers={"Content-Disposition": _content_disposition(brand_name, "Brand_Plan.docx")}
     )
 
 @router.get("/export/pptx")
@@ -91,12 +113,11 @@ async def export_pitch_deck_pptx(
         indication=indication
     )
     buffer = generate_pitch_deck_pptx(plan, assets)
-    filename = f"{brand_name.replace(' ', '_')}_Executive_Deck.pptx"
-    
+
     return Response(
         content=buffer.getvalue(),
         media_type="application/vnd.openxmlformats-officedocument.presentationml.presentation",
-        headers={"Content-Disposition": f"attachment; filename={filename}"}
+        headers={"Content-Disposition": _content_disposition(brand_name, "Executive_Deck.pptx")}
     )
 
 @router.get("/export/xlsx")
@@ -106,10 +127,9 @@ async def export_financial_model_xlsx(
 ):
     forecast = calculate_market_forecast(therapy_area=therapy_area)
     buffer = generate_financial_model_xlsx(forecast, brand_name)
-    filename = f"{brand_name.replace(' ', '_')}_Financial_Model.xlsx"
-    
+
     return Response(
         content=buffer.getvalue(),
         media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-        headers={"Content-Disposition": f"attachment; filename={filename}"}
+        headers={"Content-Disposition": _content_disposition(brand_name, "Financial_Model.xlsx")}
     )

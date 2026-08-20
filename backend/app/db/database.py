@@ -1,21 +1,37 @@
 import os
 import json
+import logging
 from datetime import datetime
 from typing import List, Dict, Any, Optional
 
-from sqlalchemy import create_engine, Column, String, Text
+from sqlalchemy import create_engine, Column, String, Text, text
 from sqlalchemy.orm import declarative_base, sessionmaker
 
 from ..models.project import Project
+
+logger = logging.getLogger(__name__)
 
 BASE_DIR = os.path.dirname(os.path.dirname(__file__))
 DB_DIR = os.path.join(BASE_DIR, "data")
 DB_PATH = os.path.join(DB_DIR, "brandplan.db")
 SQLITE_URL = f"sqlite:///{DB_PATH}"
 
-os.makedirs(DB_DIR, exist_ok=True)
+# DATABASE_URL lets a deployment point at managed Postgres. Without it the app
+# falls back to a local SQLite file, which on an ephemeral host (Render free
+# tier, a container without a mounted volume) is wiped on every restart.
+DATABASE_URL = (os.getenv("DATABASE_URL") or "").strip()
 
-engine = create_engine(SQLITE_URL, connect_args={"check_same_thread": False})
+if DATABASE_URL:
+    # SQLAlchemy dropped the postgres:// alias that several hosts still hand out.
+    if DATABASE_URL.startswith("postgres://"):
+        DATABASE_URL = DATABASE_URL.replace("postgres://", "postgresql://", 1)
+    # SQLite still needs the threading opt-out; other drivers reject the arg.
+    connect_args = {"check_same_thread": False} if DATABASE_URL.startswith("sqlite") else {}
+    engine = create_engine(DATABASE_URL, pool_pre_ping=True, connect_args=connect_args)
+else:
+    os.makedirs(DB_DIR, exist_ok=True)
+    engine = create_engine(SQLITE_URL, connect_args={"check_same_thread": False})
+
 SessionLocal = sessionmaker(bind=engine, expire_on_commit=False)
 Base = declarative_base()
 
@@ -112,6 +128,19 @@ def init_db():
             ]
             session.add_all(default_projects)
             session.commit()
+    finally:
+        session.close()
+
+
+def db_healthy() -> bool:
+    """Return whether the database actually answers a trivial query."""
+    session = SessionLocal()
+    try:
+        session.execute(text("SELECT 1"))
+        return True
+    except Exception:
+        logger.exception("Database health check failed")
+        return False
     finally:
         session.close()
 

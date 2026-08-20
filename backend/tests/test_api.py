@@ -1,20 +1,5 @@
-from fastapi.testclient import TestClient
-from app.main import app
+import uuid
 
-client = TestClient(app)
-
-
-def test_root():
-    res = client.get("/")
-    assert res.status_code == 200
-    data = res.json()
-    assert "status" in data
-
-
-def test_health():
-    res = client.get("/health")
-    assert res.status_code == 200
-    assert res.json().get("status") == "healthy"
 import pytest
 from fastapi.testclient import TestClient
 from app.db.database import init_db
@@ -24,6 +9,14 @@ from app.main import app
 init_db()
 
 client = TestClient(app)
+
+def test_health():
+    response = client.get("/health")
+    assert response.status_code == 200
+    body = response.json()
+    assert body["status"] == "healthy"
+    assert body["database"] == "connected"
+
 
 def test_root_endpoint():
     response = client.get("/")
@@ -120,3 +113,128 @@ def test_export_xlsx():
     assert response.status_code == 200
     assert response.headers["content-type"] == "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
     assert len(response.content) > 1000
+
+
+# --- Regression tests for fixed defects -------------------------------------
+
+@pytest.mark.parametrize("param,value", [
+    ("prevalence_rate", -1),
+    ("prevalence_rate", 5),
+    ("diagnosed_rate", 0),
+    ("treated_rate", 1.5),
+    ("brand_adoption_rate_y1", -0.2),
+    ("total_population", -999),
+    ("annual_cost_per_patient_usd", 0),
+])
+def test_forecast_rejects_impossible_inputs(param, value):
+    """Out-of-range assumptions used to return 200 with negative revenue."""
+    response = client.get(f"/api/forecasting/model?{param}={value}")
+    assert response.status_code == 422
+
+
+def test_forecast_share_cannot_exceed_market():
+    """A high Year-1 adoption rate must not project more than 100% share."""
+    response = client.get("/api/forecasting/model?brand_adoption_rate_y1=0.3")
+    assert response.status_code == 200
+    data = response.json()
+    market = data["current_therapy_market_size_usd"]
+    for scenario in ("conservative_scenario", "realistic_scenario", "aggressive_scenario"):
+        for year in ("year_1", "year_2", "year_3", "year_4", "year_5"):
+            assert 0 <= data[scenario][year] <= market
+
+
+def test_forecast_segments_match_therapy_area():
+    """Oncology forecasts must not return the cardiometabolic prescriber panel."""
+    response = client.get("/api/forecasting/model?therapy_area=Immuno-Oncology")
+    assert response.status_code == 200
+    specialties = " ".join(s["specialty"] for s in response.json()["doctor_specialties"]).lower()
+    assert "oncolog" in specialties
+    assert "cardiolog" not in specialties
+
+
+def test_forecast_unknown_therapy_area_flags_gap():
+    """An unmapped therapy area shows a gap rather than a wrong default panel."""
+    response = client.get("/api/forecasting/model?therapy_area=Ophthalmology")
+    assert response.status_code == 200
+    segments = response.json()["doctor_specialties"]
+    assert all(s["estimated_pool_size"] == 0 for s in segments)
+    assert "not yet defined" in segments[0]["specialty"]
+
+
+def test_brand_plan_regenerates_when_inputs_change():
+    """A saved plan must not be served after the project's molecule changes."""
+    project_id = f"test-{uuid.uuid4().hex[:8]}"
+    first = client.get(
+        f"/api/brand-plan/generate?project_id={project_id}"
+        "&molecule=Empagliflozin&brand_name=First&indication=Heart+Failure&therapy_area=Cardiometabolic"
+    )
+    assert first.status_code == 200
+    assert first.json()["molecule_name"] == "Empagliflozin"
+
+    second = client.get(
+        f"/api/brand-plan/generate?project_id={project_id}"
+        "&molecule=Pembrolizumab&brand_name=Keytruda&indication=NSCLC&therapy_area=Immuno-Oncology"
+    )
+    assert second.status_code == 200
+    body = second.json()
+    assert body["molecule_name"] == "Pembrolizumab"
+    assert body["brand_name"] == "Keytruda"
+    assert body["indication"] == "NSCLC"
+
+
+def test_brand_plan_reuses_plan_for_identical_inputs():
+    project_id = f"test-{uuid.uuid4().hex[:8]}"
+    query = (
+        f"/api/brand-plan/generate?project_id={project_id}"
+        "&molecule=Empagliflozin&brand_name=Cardioflo&indication=CKD&therapy_area=Cardiometabolic"
+    )
+    first = client.get(query).json()
+    second = client.get(query).json()
+    assert first["last_updated"] == second["last_updated"]
+
+
+def test_brand_plan_refresh_forces_rebuild():
+    project_id = f"test-{uuid.uuid4().hex[:8]}"
+    query = (
+        f"/api/brand-plan/generate?project_id={project_id}"
+        "&molecule=Empagliflozin&brand_name=Cardioflo&indication=CKD&therapy_area=Cardiometabolic"
+    )
+    client.get(query)
+    refreshed = client.get(query + "&refresh=true")
+    assert refreshed.status_code == 200
+    assert refreshed.json()["molecule_name"] == "Empagliflozin"
+
+
+def test_assets_do_not_leak_other_molecule_clinical_content():
+    """Oncology assets must not carry SGLT2/cardio-renal objections and visuals."""
+    response = client.get("/api/assets/generate?molecule=Pembrolizumab&brand_name=Keytruda&indication=NSCLC")
+    assert response.status_code == 200
+    blob = response.text.lower()
+    for term in ("sglt2", "egfr", "hba1c", "metformin", "mycotic", "cardio-renal"):
+        assert term not in blob, f"leaked cardio-renal term: {term}"
+
+
+@pytest.mark.parametrize("brand_name", [
+    "कार्डियो",           # non-Latin-1 script
+    "Café Brand",         # accented characters
+    "Brand’s Plan",  # curly apostrophe pasted from Word
+])
+def test_export_handles_non_latin1_brand_names(brand_name):
+    """These crashed with UnicodeEncodeError while building the header."""
+    response = client.get("/api/reports/export/xlsx", params={"brand_name": brand_name})
+    assert response.status_code == 200
+    assert len(response.content) > 1000
+
+
+def test_export_filename_cannot_be_steered_by_input():
+    response = client.get("/api/reports/export/xlsx", params={"brand_name": "../../../etc/passwd"})
+    assert response.status_code == 200
+    disposition = response.headers["content-disposition"]
+    assert ".." not in disposition
+    assert "/" not in disposition.split("filename=")[1]
+
+
+def test_export_rejects_nothing_but_still_names_the_file():
+    response = client.get("/api/reports/export/xlsx", params={"brand_name": "///"})
+    assert response.status_code == 200
+    assert "filename=" in response.headers["content-disposition"]

@@ -81,8 +81,8 @@ def generate_strategic_brand_plan(
             section_id="sec-7",
             section_title="7. Target Customer & Patient Personas",
             section_category="Commercial Strategy",
-            content_markdown=f"### Prescriber & Patient Segmentation\n\n- **Primary Prescribers**: Tier A Cardiologists, Diabetologists, and Nephrologists.\n- **Patient Persona**: The 58-year-old multi-comorbid patient with declining renal function and elevated CV risk seeking long-term organ preservation.",
-            key_takeaways=["Focus 70% of field effort on Tier A specialist prescribers", "Empower patients with disease awareness tools"],
+            content_markdown=f"### Prescriber & Patient Segmentation\n\n- **Primary Prescribers**: Define the Tier A specialties that treat {indication} and validate pool sizes for {target_geography}.\n- **Patient Persona**: Define the target patient for {indication} — age, comorbidity burden, treatment history, and the outcome they are seeking.",
+            key_takeaways=["Validate Tier A specialty mix before allocating field effort", "Empower patients with disease awareness tools"],
             citations=[{"ref": "ASSUMPTION", "note": "Segment sizing requires sourced validation"}]
         ),
         BrandPlanSection(
@@ -113,7 +113,7 @@ def generate_strategic_brand_plan(
             section_id="sec-11",
             section_title="11. KOL Advocacy & CME Education Roadmap",
             section_category="Medical Affairs",
-            content_markdown=f"### Scientific Engagement & Medical Affairs\n\nEstablish a 30-member National Advisory Board of eminent Cardiologists and Diabetologists. Conduct 50 regional Clinical Masterclasses (CMEs) and sponsor dedicated investigator-initiated real-world registries.",
+            content_markdown=f"### Scientific Engagement & Medical Affairs\n\nEstablish a National Advisory Board drawn from the leading specialists in {therapy_area}. Plan regional Clinical Masterclasses (CMEs) and investigator-initiated real-world registries. Confirm board size, cadence, and budget against local transparency and anti-bribery codes.",
             key_takeaways=["Top-down scientific endorsement", "Peer-to-peer physician education"],
             citations=[{"ref": "Medical Affairs Strategy", "note": "KOL Engagement Framework"}]
         ),
@@ -216,7 +216,7 @@ def generate_commercial_assets(
             slide_number=3,
             slide_title="Slide 3: Landmark Survival Efficacy",
             headline_for_doctor="Clinical Evidence Summary: Insert Verified Endpoint",
-            visual_concept_description="Clear, prominent Kaplan-Meier survival curves demonstrating early and sustained divergence favoring the treatment arm.",
+            visual_concept_description="Concept: outcome curve for the reviewed primary endpoint, showing the treatment and comparator arms. Confirm the endpoint type before choosing the chart form.",
             clinical_data_chart_description="Placeholder for approved clinical chart. Add PMID/DOI, population, endpoint, comparator, and confidence interval.",
             key_bullet_points=[
                 "Insert verified primary endpoint result.",
@@ -229,9 +229,9 @@ def generate_commercial_assets(
         ),
         VisualAidSlide(
             slide_number=4,
-            slide_title="Slide 4: Sustained Renal Shield",
+            slide_title="Slide 4: Secondary Endpoint or Biomarker Story",
             headline_for_doctor="Outcome or Biomarker Story: Draft Placeholder",
-            visual_concept_description="Longitudinal eGFR trajectory graph showing acute hemodynamic stabilization followed by significant long-term preservation compared to placebo.",
+            visual_concept_description="Concept: longitudinal trajectory of the reviewed secondary endpoint or biomarker versus comparator. Insert the verified measure before design.",
             clinical_data_chart_description="Placeholder for sourced outcome or biomarker chart.",
             key_bullet_points=[
                 "Insert source-backed endpoint.",
@@ -246,7 +246,7 @@ def generate_commercial_assets(
             slide_number=5,
             slide_title="Slide 5: Safety, Tolerability & Dosing Simplicity",
             headline_for_doctor="Dosing and Safety: Label-Verified Content Required",
-            visual_concept_description="Graphic of the 10 mg film-coated tablet with a clock icon indicating once-daily morning dosing.",
+            visual_concept_description="Concept: dosage form and administration schedule graphic. Insert the approved strength, form, and route from the local label before design.",
             clinical_data_chart_description="Placeholder for adverse event table from approved label or reviewed study.",
             key_bullet_points=[
                 "Insert approved dose and route.",
@@ -276,7 +276,7 @@ def generate_commercial_assets(
     
     lbl = LBLBrief(
         title=f"{brand} ({mol}) Clinical Leave-Behind Literature",
-        target_audience="Cardiologists, Endocrinologists, Nephrologists, and Consultant Physicians",
+        target_audience=f"Target prescriber specialties for {indication} — confirm segments before production.",
         page_1_content_headline="Clinical Evidence Summary Pending Review",
         page_1_clinical_evidence_summary="Add only source-backed clinical evidence with claim-level citations and limitations.",
         page_2_dosing_and_safety_summary="Add approved dosing, warnings, contraindications, adverse reactions, and fair balance.",
@@ -284,27 +284,30 @@ def generate_commercial_assets(
         prescribing_info_footnote="Reference approved local prescribing information before external use."
     )
     
+    # Objection frames are deliberately molecule-agnostic. Pre-filling concrete
+    # clinical objections would put another molecule's safety and efficacy
+    # profile into this brand's field material.
     objections = [
         MRObjectionHandling(
-            doctor_objection="My patient's HbA1c is already well controlled at 6.8% on Metformin. Why do I need to add your brand?",
-            underlying_concern="Doctor views the drug purely as a glucose-lowering agent rather than an organ-protective therapy.",
-            recommended_mr_response=f"Doctor, patient selection should follow the approved indication and local guideline context. I can share reviewed evidence once the claim, population, and safety balance have been approved for {brand}.",
-            supporting_clinical_trial="SOURCE_NEEDED",
+            doctor_objection=f"Why should I switch a stable patient to {brand}?",
+            underlying_concern="Perceived lack of incremental benefit over the incumbent standard of care.",
+            recommended_mr_response=f"Doctor, patient selection should follow the approved indication and local guideline context for {brand}. Insert the reviewed switch rationale once the claim, population, and safety balance are MLR-approved.",
+            supporting_clinical_trial="SOURCE_NEEDED: comparative or switch-study evidence",
             recommended_visual_aid_page=1
         ),
         MRObjectionHandling(
-            doctor_objection="I am worried about the initial dip in eGFR after starting an SGLT2 inhibitor.",
-            underlying_concern="Concern that the transient eGFR drop indicates acute kidney injury (AKI).",
-            recommended_mr_response=f"Doctor, renal monitoring language must follow the approved local label for {brand}. We should review the label and relevant studies before discussing clinical implications.",
-            supporting_clinical_trial="SOURCE_NEEDED",
-            recommended_visual_aid_page=4
+            doctor_objection=f"What is the tolerability and monitoring burden with {brand}?",
+            underlying_concern="Concern about adverse events, monitoring requirements, and discontinuation risk.",
+            recommended_mr_response=f"Doctor, adverse event frequency, monitoring, and counselling language must be taken directly from the approved prescribing information for {mol}. Insert the label-verified safety summary here.",
+            supporting_clinical_trial="SOURCE_NEEDED: approved prescribing information",
+            recommended_visual_aid_page=5
         ),
         MRObjectionHandling(
-            doctor_objection="What about the risk of genital mycotic infections in female patients?",
-            underlying_concern="Patient complaints and potential treatment discontinuation.",
-            recommended_mr_response=f"Doctor, adverse event frequency and counseling language should be taken directly from the approved prescribing information for {brand}. I will confirm the label wording before making a claim.",
-            supporting_clinical_trial="SOURCE_NEEDED",
-            recommended_visual_aid_page=5
+            doctor_objection=f"How strong is the evidence base behind {brand}?",
+            underlying_concern="Doubt about trial quality, endpoint relevance, or generalisability to their patients.",
+            recommended_mr_response=f"Doctor, insert the reviewed pivotal trial design, population, comparator, and primary endpoint for {mol}. Do not quote effect sizes until each figure is traced to the publication and cleared by MLR.",
+            supporting_clinical_trial="SOURCE_NEEDED: pivotal trial publication",
+            recommended_visual_aid_page=3
         )
     ]
     
@@ -315,10 +318,10 @@ def generate_commercial_assets(
         how_to_take_and_adherence="Insert approved dosing instructions from local prescribing information.",
         what_to_expect_and_side_effects="Insert approved adverse reactions and instructions on when to contact a healthcare professional.",
         lifestyle_and_diet_tips=[
-            "Drink 6 to 8 glasses of water daily unless your doctor has placed you on fluid restriction.",
-            "Maintain a balanced, low-sodium diet rich in vegetables, lean proteins, and fiber.",
-            "Take a 20-30 minute brisk walk every day to support your heart health.",
-            "Never stop taking your medication without consulting your doctor first."
+            "Insert diet guidance reviewed against the approved patient information leaflet for this condition.",
+            "Insert activity guidance appropriate to this patient population and cleared by medical review.",
+            "Follow your doctor's instructions about fluid, diet, and activity — these vary by condition and by patient.",
+            "Never stop or change your medication without consulting your doctor first."
         ]
     )
     
@@ -326,13 +329,13 @@ def generate_commercial_assets(
         molecule_name=mol,
         brand_name=brand,
         campaign_theme="Evidence-Led Care: Draft Campaign Theme Pending Review",
-        logo_direction="Clean modern typography with an interlocking double-shield icon representing heart and kidney unity.",
-        pack_mockup_brief="Premium 28-tablet blister pack in metallic deep blue and medical teal accents with embossed brand lettering and braille safety markings.",
+        logo_direction="Clean modern typography with a brand mark that reflects the confirmed therapeutic benefit. Finalise symbolism once positioning is approved.",
+        pack_mockup_brief="Premium primary pack concept with embossed brand lettering and braille safety markings. Confirm the approved dosage form, pack count, and regulatory pack artwork requirements before production.",
         visual_aid_slides=slides,
         lbl_brief=lbl,
         mr_objection_handling_guide=objections,
         patient_education_leaflet=patient_leaf,
-        conference_booth_concept="An interactive 3D Cardio-Renal Experience Cube with immersive touchscreens demonstrating intraglomerular pressure reduction.",
+        conference_booth_concept="Interactive booth concept with immersive touchscreens demonstrating the verified mechanism of action. Confirm the scientific narrative before build.",
         digital_email_copy=f"Subject: Draft {brand} Evidence Update for Internal Review\n\nDear Doctor,\n\nThis copy is a placeholder. Insert only approved, source-backed claims for {brand} ({mol}) after MLR review.\n\n[Reviewed Evidence Link]",
         banner_ad_copy=f"{brand} ({mol}) draft campaign copy. Not for external use until MLR approval."
     )

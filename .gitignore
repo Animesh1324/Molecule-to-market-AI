@@ -25,5 +25,9 @@ out/
 *.swp
 
 # Build artifacts
-backend/data/*.db
 frontend/.next/
+frontend/tsconfig.tsbuildinfo
+
+# Local database (regenerated on startup; never commit real project data)
+*.db
+backend/app/data/*.db
