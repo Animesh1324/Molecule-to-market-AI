@@ -11,6 +11,7 @@ python-pptx==1.0.2
 openpyxl==3.1.5
 requests==2.32.5
 httpx==0.28.1
+anthropic==0.125.0
 
 # Optional: required only when DATABASE_URL points at PostgreSQL.
 # psycopg2-binary==2.9.10

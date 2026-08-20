@@ -20,6 +20,7 @@ from .api import (
 )
 from .config import get_settings
 from .db.database import init_db, db_healthy
+from .services.claude_client import is_configured as ai_configured
 
 logging.basicConfig(
     level=logging.INFO,
@@ -95,6 +96,11 @@ async def root():
         "modules_active": 10,
         "compliance_mode": "FDA OPDP / CDSCO UCPMP / EMA Fair Balance Active",
         "environment": settings["app_env"],
+        "ai_drafting": {
+            "enabled": ai_configured(),
+            "model": settings["claude_model"] if ai_configured() else None,
+            "note": "Drafts internal strategy only. Clinical claims stay sourced from the evidence and label modules.",
+        },
     }
 
 

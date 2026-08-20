@@ -26,6 +26,14 @@ services:
           property: connectionString
       - key: PYTHON_VERSION
         value: "3.12.6"
+      # Optional: enables Claude drafting of the strategy narrative.
+      # Without it the backend serves the deterministic template.
+      - key: ANTHROPIC_API_KEY
+        sync: false
+      - key: CLAUDE_MODEL
+        value: claude-opus-5
+      - key: CLAUDE_EFFORT
+        value: high
 
   - type: web
     name: pharma-brandplan-frontend

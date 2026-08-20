@@ -1178,6 +1178,39 @@ export default function ProjectWorkspacePage() {
               </div>
             </div>
 
+            {/* Drafting provenance — makes AI-written text distinguishable from template text */}
+            {brandPlan.ai_status && brandPlan.ai_status !== 'template' && (
+              <div
+                className={`p-4 rounded-2xl border space-y-2 ${
+                  brandPlan.ai_status === 'drafted'
+                    ? 'bg-brand-500/5 border-brand-500/30'
+                    : 'bg-amber-500/5 border-amber-500/30'
+                }`}
+              >
+                <div className="flex items-center gap-2">
+                  <Sparkles
+                    className={`w-4 h-4 shrink-0 ${
+                      brandPlan.ai_status === 'drafted' ? 'text-brand-400' : 'text-amber-400'
+                    }`}
+                  />
+                  <span className="text-xs font-mono uppercase tracking-wider text-slate-200">
+                    {brandPlan.ai_status === 'drafted'
+                      ? `Narrative drafted by ${brandPlan.ai_model ?? 'Claude'} — internal draft, not MLR approved`
+                      : 'AI drafting unavailable — showing the deterministic template'}
+                  </span>
+                </div>
+                {brandPlan.ai_review_flags && brandPlan.ai_review_flags.length > 0 && (
+                  <ul className="space-y-1 pl-6">
+                    {brandPlan.ai_review_flags.map((flag, fIdx) => (
+                      <li key={fIdx} className="text-[11px] text-slate-400 leading-relaxed list-disc">
+                        {flag}
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+            )}
+
             {/* Strategic Pillars Summary */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
               <div className="p-5 rounded-2xl bg-slate-900 border border-slate-800 space-y-2">

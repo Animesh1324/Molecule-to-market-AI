@@ -52,3 +52,10 @@ class CompleteBrandPlan(BaseModel):
     kpi_scorecard: List[KPIMetric] = []
     mlr_compliance_signoff_ready: bool = True
     last_updated: str
+
+    # Drafting provenance. `ai_drafted` marks text a model wrote rather than the
+    # deterministic template, so a reviewer can tell the two apart on sight.
+    ai_drafted: bool = False
+    ai_model: Optional[str] = None
+    ai_review_flags: List[str] = []
+    ai_status: str = "template"  # template | drafted | drafting_failed

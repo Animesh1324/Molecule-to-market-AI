@@ -23,10 +23,18 @@ def get_settings() -> dict:
         configured,
         "http://localhost:3000,http://127.0.0.1:3000",
     )
+    anthropic_key = os.getenv("ANTHROPIC_API_KEY", "").strip()
     return {
         "app_env": os.getenv("APP_ENV", "development").strip().lower(),
         "port": int(os.getenv("PORT", "8000")),
         "cors_origins": origins,
         "cors_origins_configured": bool(configured and configured.strip()),
         "database_url": os.getenv("DATABASE_URL", "").strip(),
+        "anthropic_api_key": anthropic_key,
+        # AI drafting is opt-in and additive: with no key the app keeps using
+        # the deterministic template, so a missing key degrades the output
+        # rather than breaking the endpoint.
+        "ai_enabled": bool(anthropic_key) and os.getenv("AI_DRAFTING", "on").strip().lower() not in ("off", "0", "false"),
+        "claude_model": os.getenv("CLAUDE_MODEL", "claude-opus-5").strip(),
+        "claude_effort": os.getenv("CLAUDE_EFFORT", "high").strip().lower(),
     }

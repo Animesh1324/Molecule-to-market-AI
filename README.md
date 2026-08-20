@@ -121,12 +121,40 @@ Then redeploy the frontend, since `NEXT_PUBLIC_API_BASE` is baked in at build ti
 - Set `CORS_ORIGINS` to the exact production frontend host(s) rather than wildcard origins.
 - Use a production build of the Next.js app and run it behind a reverse proxy or container orchestration layer.
 
+## AI drafting (optional)
+
+Set `ANTHROPIC_API_KEY` to have Claude draft the brand plan's strategy narrative.
+
+```bash
+export ANTHROPIC_API_KEY=sk-ant-...
+```
+
+What Claude is and is not allowed to write:
+
+| Claude drafts | Claude never writes |
+| --- | --- |
+| Positioning rationale, segmentation, launch sequencing, KOL and channel strategy, the open questions a brand team must close | Effect sizes, p-values, hazard/odds ratios, confidence intervals, comparative superiority, safety assurances, dose/strength/route |
+
+Three layers keep that boundary:
+
+1. **Grounding** — the prompt carries only facts the app already fetched (PubChem molecule profile, PubMed citations on file). Claude is told to work from those and flag gaps as `[SOURCE NEEDED: ...]` rather than filling them from memory.
+2. **Screening** — every drafted field is scanned by `services/compliance.py`. A field containing a clinical claim is discarded, the template text is kept, and a flag appears in `ai_review_flags` and in the UI.
+3. **No signoff** — `mlr_compliance_signoff_ready` is forced to `false` on every drafted plan.
+
+Drafting degrades safely. A missing key, rate limit, refusal, or timeout returns the deterministic template with `ai_status: "drafting_failed"` — the endpoint never errors. Disable it with `AI_DRAFTING=off`, or per request with `?ai=false`.
+
+Check whether drafting is live:
+
+```bash
+curl -s http://localhost:8000/ | python3 -m json.tool
+```
+
 ## Known limitations
 
 Read these before using output in a real brand plan.
 
 - **No authentication.** Every endpoint is open. Anyone who can reach the URL can read, create, and overwrite every project and brand plan. Put it behind SSO, a VPN, or an authenticating proxy before exposing it beyond your own machine.
-- **The brand plan generator is a template, not an AI.** `ai_orchestrator.py` fills a fixed 12-section scaffold with your molecule and indication. It deliberately emits `SOURCE_NEEDED` placeholders instead of claims. No model is called; `services/prompts.py` is an unused prompt library kept for future work.
+- **Claude drafts strategy only, never clinical claims.** With `ANTHROPIC_API_KEY` set, Claude Opus 5 drafts the plan's narrative sections grounded in the molecule and evidence data the app already fetched. It is instructed never to produce effect sizes, p-values, hazard ratios, comparative superiority, safety assurances, or dosing — and every generated field is screened by `services/compliance.py` before it reaches the plan. Text that trips the screen is withheld, the template text is kept, and a review flag is raised. Without a key the app uses the deterministic template and every other module works unchanged. `mlr_compliance_signoff_ready` stays `false` either way.
 - **Curated depth covers four molecules.** Empagliflozin, Semaglutide, Pembrolizumab, and Apixaban have hand-checked evidence, trials, and label data. Other molecules fall back to live PubChem/PubMed/ClinicalTrials.gov lookups, which return bibliographic records rather than claim-ready endpoint data. Competitor landscapes exist only for Empagliflozin; others return an explicit gap.
 - **Forecast defaults are planning heuristics, not market research.** Prescriber pool sizes, regional revenue splits, scenario uptake multipliers, and the 6.8% therapy CAGR are illustrative defaults. Replace them with sourced assumptions before the numbers inform a decision.
 - **Nothing here is MLR-approved.** `mlr_compliance_signoff_ready` is always `false`. Every claim needs evidence mapping, label verification, and fair-balance review before external use.

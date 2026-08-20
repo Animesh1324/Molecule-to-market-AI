@@ -312,6 +312,10 @@ export interface CompleteBrandPlan {
   kpi_scorecard: KPIMetric[];
   mlr_compliance_signoff_ready: boolean;
   last_updated: string;
+  ai_drafted?: boolean;
+  ai_model?: string | null;
+  ai_review_flags?: string[];
+  ai_status?: 'template' | 'drafted' | 'drafting_failed';
 }
 
 export interface VisualAidSlide {
