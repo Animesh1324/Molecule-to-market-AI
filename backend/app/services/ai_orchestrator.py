@@ -1,0 +1,338 @@
+from datetime import datetime
+from typing import Dict, Any, List, Optional
+from ..models.brand_plan import CompleteBrandPlan, BrandPlanSection, KPIMetric, MonthlyTacticalMilestone
+from ..models.assets import CreativeCommercialAssets, VisualAidSlide, LBLBrief, MRObjectionHandling, PatientEducationLeaflet
+
+def generate_strategic_brand_plan(
+    project_id: str,
+    molecule_name: str,
+    brand_name: Optional[str] = None,
+    therapy_area: str = "Cardiometabolic",
+    indication: str = "Heart Failure & Chronic Kidney Disease in Type 2 Diabetes",
+    target_geography: str = "Global"
+) -> CompleteBrandPlan:
+    """Create a draft brand plan scaffold.
+
+    This function is deliberately conservative: it produces planning structure
+    and placeholders, not verified medical claims. MLR signoff is false until
+    claim-level evidence and label review are completed.
+    """
+    
+    brand = brand_name or f"{molecule_name.title()} Brand"
+    mol = molecule_name.title()
+    now_str = datetime.now().strftime("%Y-%m-%d %H:%M")
+    
+    mission = f"To define a source-backed launch strategy for {brand} ({mol}) in {indication}, pending medical, regulatory, legal, and market-access review."
+    
+    vision = f"To build a compliant, evidence-led brand plan for {therapy_area} across {target_geography}, with all claims traceable to approved labels or reviewed literature."
+    
+    obj = "Define editable commercial assumptions, evidence gaps, target segments, launch activities, and KPIs before any external promotional use."
+    
+    sections = [
+        BrandPlanSection(
+            section_id="sec-1",
+            section_title="1. Executive Summary & Brand Charter",
+            section_category="Strategic Foundation",
+            content_markdown=f"### Brand Charter for {brand}\n\n**Molecule**: {mol}\n**Core Indication**: {indication}\n**Geography**: {target_geography}\n\nDraft the strategic ambition only after confirming label status, clinical evidence strength, unmet need, reimbursement context, and competitor claims.",
+            key_takeaways=["Draft strategy scaffold", "Requires source-backed completion"],
+            citations=[{"ref": "REVIEW_REQUIRED", "note": "No automatic MLR signoff"}]
+        ),
+        BrandPlanSection(
+            section_id="sec-2",
+            section_title="2. Molecule Scientific Platform & MoA",
+            section_category="Clinical Science",
+            content_markdown=f"### The Scientific Platform of {mol}\n\nInsert verified mechanism of action, pharmacodynamics, pharmacokinetics, dosing, and safety profile from approved labels and reviewed references.",
+            key_takeaways=["Verify MOA", "Verify PK/PD", "Verify safety"],
+            citations=[{"ref": "SOURCE_NEEDED", "note": "Regulatory label and pharmacology review required"}]
+        ),
+        BrandPlanSection(
+            section_id="sec-3",
+            section_title="3. Epidemiology & Unmet Medical Need",
+            section_category="Market Context",
+            content_markdown=f"### Disease Burden and Therapeutic Gaps\n\nDocument sourced epidemiology, diagnosis/treatment rates, patient journey friction, and unmet needs for {indication} in {target_geography}.",
+            key_takeaways=["Add sourced patient pool", "Add treatment gap evidence"],
+            citations=[{"ref": "SOURCE_NEEDED", "note": "Epidemiology source required"}]
+        ),
+        BrandPlanSection(
+            section_id="sec-4",
+            section_title="4. Landmark Clinical Evidence & Study Hierarchy",
+            section_category="Clinical Science",
+            content_markdown=f"### Clinical Evidence Hierarchy\n\nList pivotal trials, systematic reviews, guidelines, and real-world evidence. Do not add effect sizes, p-values, or superiority language until each claim is traced to a citation.",
+            key_takeaways=["Rank evidence", "Map claims to PMID/DOI/label"],
+            citations=[{"ref": "SOURCE_NEEDED", "note": "Claim-level evidence required"}]
+        ),
+        BrandPlanSection(
+            section_id="sec-5",
+            section_title="5. Regulatory Landscape & Labeling Fact Base",
+            section_category="Regulatory",
+            content_markdown=f"### Regulatory Landscape & Labeling Fact Base\n\nConfirm approval status, indications, contraindications, warnings, dosage, and promotional boundaries for each target jurisdiction before release.",
+            key_takeaways=["Verify label status", "Define fair-balance requirements"],
+            citations=[{"ref": "SOURCE_NEEDED", "note": "DailyMed/EMA/CDSCO review required"}]
+        ),
+        BrandPlanSection(
+            section_id="sec-6",
+            section_title="6. Competitive Defense & Differentiation Gap",
+            section_category="Commercial Strategy",
+            content_markdown=f"### Competitive Defense & Differentiation Gap\n\nBuild competitor comparison from verified labels, trial publications, pricing sources, access data, and approved claim language.",
+            key_takeaways=["No unsourced superiority claims", "Add competitor claim sources"],
+            citations=[{"ref": "SOURCE_NEEDED", "note": "Competitor source review required"}]
+        ),
+        BrandPlanSection(
+            section_id="sec-7",
+            section_title="7. Target Customer & Patient Personas",
+            section_category="Commercial Strategy",
+            content_markdown=f"### Prescriber & Patient Segmentation\n\n- **Primary Prescribers**: Tier A Cardiologists, Diabetologists, and Nephrologists.\n- **Patient Persona**: The 58-year-old multi-comorbid patient with declining renal function and elevated CV risk seeking long-term organ preservation.",
+            key_takeaways=["Focus 70% of field effort on Tier A specialist prescribers", "Empower patients with disease awareness tools"],
+            citations=[{"ref": "ASSUMPTION", "note": "Segment sizing requires sourced validation"}]
+        ),
+        BrandPlanSection(
+            section_id="sec-8",
+            section_title="8. Brand Positioning & Core Promise",
+            section_category="Brand Identity",
+            content_markdown=f"### Positioning Statement\n\nDraft positioning only within the verified indication and label boundaries. Mark any aspirational positioning as internal strategy, not promotional copy.",
+            key_takeaways=["Stay within label", "Separate strategy from claims"],
+            citations=[{"ref": "REVIEW_REQUIRED", "note": "Positioning requires MLR/legal review"}]
+        ),
+        BrandPlanSection(
+            section_id="sec-9",
+            section_title="9. Key Promotional Messages & RTB Strategy",
+            section_category="Brand Identity",
+            content_markdown=f"### Core Reasons to Believe (RTB)\n\nAdd only claims that have a mapped label/evidence source, jurisdiction, intended audience, required safety balance, and reviewer approval.",
+            key_takeaways=["Claim text pending", "Safety balance pending", "Review pending"],
+            citations=[{"ref": "SOURCE_NEEDED", "note": "RTB evidence map required"}]
+        ),
+        BrandPlanSection(
+            section_id="sec-10",
+            section_title="10. Multi-Channel Commercial Launch Plan",
+            section_category="Execution",
+            content_markdown=f"### Integrated Go-To-Market Execution\n\nDraft launch activities across field force, medical education, digital, access, and internal enablement. External-facing assets must wait for approved claims.",
+            key_takeaways=["3-Pillar commercial launch", "Rapid hospital formulary penetration in Month 1-3"],
+            citations=[{"ref": "Commercial Launch Playbook", "note": "Omnichannel Strategy"}]
+        ),
+        BrandPlanSection(
+            section_id="sec-11",
+            section_title="11. KOL Advocacy & CME Education Roadmap",
+            section_category="Medical Affairs",
+            content_markdown=f"### Scientific Engagement & Medical Affairs\n\nEstablish a 30-member National Advisory Board of eminent Cardiologists and Diabetologists. Conduct 50 regional Clinical Masterclasses (CMEs) and sponsor dedicated investigator-initiated real-world registries.",
+            key_takeaways=["Top-down scientific endorsement", "Peer-to-peer physician education"],
+            citations=[{"ref": "Medical Affairs Strategy", "note": "KOL Engagement Framework"}]
+        ),
+        BrandPlanSection(
+            section_id="sec-12",
+            section_title="12. Balanced KPI Scorecard & Compliance Audit",
+            section_category="Governance",
+            content_markdown=f"### Commercial and Clinical Metrics\n\nTrack monthly New-to-Brand Prescriptions (NBRx), Total Prescriptions (TRx), Tier-A doctor call frequency (target >3 calls/month), and ensure 100% compliance with FDA OPDP and CDSCO promotion guidelines.",
+            key_takeaways=["Monthly NBRx tracking", "Strict promotional compliance and Fair Balance auditing"],
+            citations=[{"ref": "MLR Standard Operating Procedures", "note": "Compliance Audit Trail"}]
+        )
+    ]
+    
+    milestones = [
+        MonthlyTacticalMilestone(month_number=1, month_name="Month 1", activity="National Sales Force Training & Certification on Landmark Evidence", responsible_team="Brand & Medical"),
+        MonthlyTacticalMilestone(month_number=2, month_name="Month 2", activity="Official Commercial Launch & National Advisory Board Meeting", responsible_team="Brand Team"),
+        MonthlyTacticalMilestone(month_number=3, month_name="Month 3", activity="Top 100 Hospital Formulary Applications Submitted", responsible_team="Market Access"),
+        MonthlyTacticalMilestone(month_number=4, month_name="Month 4", activity="Regional CME Masterclass Series Kickoff (20 Cities)", responsible_team="Medical Affairs"),
+        MonthlyTacticalMilestone(month_number=6, month_name="Month 6", activity="Mid-Year TRx Review & Digital Omnichannel Scale-Up", responsible_team="Brand Team"),
+        MonthlyTacticalMilestone(month_number=9, month_name="Month 9", activity="Real-World Patient Registry Interim Analysis Release", responsible_team="Medical Affairs"),
+        MonthlyTacticalMilestone(month_number=12, month_name="Month 12", activity="Annual Brand Review & Year 2 Strategy Refinement", responsible_team="Executive Leadership")
+    ]
+    
+    kpis = [
+        KPIMetric(kpi_name="Evidence Gaps Closed", category="Medical/Clinical", target_q1="80%", target_q2="100%", target_q4="100%", target_year1="100%"),
+        KPIMetric(kpi_name="MLR-Approved Claims", category="Governance", target_q1="0", target_q2="TBD", target_q4="TBD", target_year1="TBD"),
+        KPIMetric(kpi_name="Validated Forecast Assumptions", category="Commercial", target_q1="50%", target_q2="90%", target_q4="100%", target_year1="100%"),
+        KPIMetric(kpi_name="Target Segment Validation", category="Prescriber Reach", target_q1="Draft", target_q2="Validated", target_q4="Validated", target_year1="Validated")
+    ]
+    
+    return CompleteBrandPlan(
+        project_id=project_id,
+        molecule_name=mol,
+        brand_name=brand,
+        therapy_area=therapy_area,
+        indication=indication,
+        target_geography=target_geography,
+        mission=mission,
+        vision=vision,
+        brand_objective=obj,
+        therapy_area_opportunity=f"Opportunity sizing for {therapy_area} requires sourced epidemiology and access assumptions.",
+        target_customer_and_patient_profile=f"Specialist and generalist segments should be validated for {indication} in {target_geography}.",
+        doctor_and_market_insights="Insights are placeholders until validated by market research or advisory input.",
+        competitor_gap_and_differentiation="Differentiation pending source-backed competitor and label comparison.",
+        positioning_statement=f"Draft positioning for {brand}; final claims require MLR and legal approval.",
+        brand_promise_and_rtb="Reasons to believe pending citation-level evidence mapping.",
+        key_messages_and_claim_strategy="Key messages are not claim-ready until evidence, label, and fair-balance review are complete.",
+        commercial_launch_strategy=f"Internal launch planning scaffold for {target_geography}.",
+        kol_and_cme_strategy=f"National Advisory Board + regional masterclass clinical workshops.",
+        digital_and_sales_force_strategy=f"Closed-loop marketing visual aids and doctor digital portal integration.",
+        sections=sections,
+        monthly_action_plan=milestones,
+        kpi_scorecard=kpis,
+        mlr_compliance_signoff_ready=False,
+        last_updated=now_str
+    )
+
+def generate_commercial_assets(
+    molecule_name: str,
+    brand_name: Optional[str] = None,
+    indication: str = "Heart Failure & Chronic Kidney Disease in Type 2 Diabetes"
+) -> CreativeCommercialAssets:
+    """Generate draft commercial asset briefs for internal review only."""
+    
+    brand = brand_name or f"{molecule_name.title()} Brand"
+    mol = molecule_name.title()
+    
+    slides = [
+        VisualAidSlide(
+            slide_number=1,
+            slide_title="Slide 1: Clinical Hook & Unmet Need",
+            headline_for_doctor="Unmet Need and Patient Burden: Draft Visual Hook",
+            visual_concept_description="Concept visual showing the patient journey, disease burden, and treatment decision points for review.",
+            clinical_data_chart_description="Placeholder for sourced epidemiology chart. Add citation, geography, date, and population definition before use.",
+            key_bullet_points=[
+                "Insert sourced unmet-need statement.",
+                "Insert approved disease-state fact.",
+                "Keep product claims out until label and evidence mapping are complete."
+            ],
+            medical_representative_talk_track=f"Draft only: discuss the validated unmet need for {indication}. Do not make efficacy or safety claims until approved by MLR.",
+            evidence_citation="SOURCE_NEEDED: epidemiology/guideline source",
+            safety_fair_balance_footer="Internal draft. Add approved safety information and fair balance before external use."
+        ),
+        VisualAidSlide(
+            slide_number=2,
+            slide_title="Slide 2: The Breakthrough Mechanism",
+            headline_for_doctor=f"Mechanism of Action: {mol} Scientific Storyboard",
+            visual_concept_description="Mechanism diagram concept pending validated pharmacology and label review.",
+            clinical_data_chart_description="Placeholder for approved MOA diagram with source attribution.",
+            key_bullet_points=[
+                "Insert validated target/pathway.",
+                "Insert label-consistent pharmacology language.",
+                "Flag any mechanistic inference as interpretation."
+            ],
+            medical_representative_talk_track=f"Draft only: explain the verified mechanism for {brand} using approved, source-backed language.",
+            evidence_citation="SOURCE_NEEDED: pharmacology/label source",
+            safety_fair_balance_footer="Contraindications must be copied from the approved local label."
+        ),
+        VisualAidSlide(
+            slide_number=3,
+            slide_title="Slide 3: Landmark Survival Efficacy",
+            headline_for_doctor="Clinical Evidence Summary: Insert Verified Endpoint",
+            visual_concept_description="Clear, prominent Kaplan-Meier survival curves demonstrating early and sustained divergence favoring the treatment arm.",
+            clinical_data_chart_description="Placeholder for approved clinical chart. Add PMID/DOI, population, endpoint, comparator, and confidence interval.",
+            key_bullet_points=[
+                "Insert verified primary endpoint result.",
+                "Insert validated comparator and population.",
+                "Confirm on-label use and required limitations."
+            ],
+            medical_representative_talk_track=f"Draft only: summarize reviewed evidence for {brand}. Do not include effect sizes until checked against the source publication.",
+            evidence_citation="SOURCE_NEEDED: trial publication and label",
+            safety_fair_balance_footer="Add local prescribing information and fair-balance safety text."
+        ),
+        VisualAidSlide(
+            slide_number=4,
+            slide_title="Slide 4: Sustained Renal Shield",
+            headline_for_doctor="Outcome or Biomarker Story: Draft Placeholder",
+            visual_concept_description="Longitudinal eGFR trajectory graph showing acute hemodynamic stabilization followed by significant long-term preservation compared to placebo.",
+            clinical_data_chart_description="Placeholder for sourced outcome or biomarker chart.",
+            key_bullet_points=[
+                "Insert source-backed endpoint.",
+                "Clarify approved vs investigational context.",
+                "Include limitations and safety caveats."
+            ],
+            medical_representative_talk_track=f"Draft only: use label-consistent language for {brand} and avoid unapproved outcome claims.",
+            evidence_citation="SOURCE_NEEDED",
+            safety_fair_balance_footer="Add adverse reactions and warnings from approved label."
+        ),
+        VisualAidSlide(
+            slide_number=5,
+            slide_title="Slide 5: Safety, Tolerability & Dosing Simplicity",
+            headline_for_doctor="Dosing and Safety: Label-Verified Content Required",
+            visual_concept_description="Graphic of the 10 mg film-coated tablet with a clock icon indicating once-daily morning dosing.",
+            clinical_data_chart_description="Placeholder for adverse event table from approved label or reviewed study.",
+            key_bullet_points=[
+                "Insert approved dose and route.",
+                "Insert contraindications and warnings.",
+                "Insert common adverse reactions with source."
+            ],
+            medical_representative_talk_track=f"Draft only: dosing and safety for {brand} must match the approved local prescribing information.",
+            evidence_citation="SOURCE_NEEDED: approved prescribing information",
+            safety_fair_balance_footer="Fair balance required before external use."
+        ),
+        VisualAidSlide(
+            slide_number=6,
+            slide_title="Slide 6: The Brand Commitment",
+            headline_for_doctor=f"{brand}: Draft Closing Slide",
+            visual_concept_description="Inspirational brand visual of an active patient with family, with the core 3 proof-point pillars highlighted in gold/blue.",
+            clinical_data_chart_description="Placeholder for final approved claims summary.",
+            key_bullet_points=[
+                "Insert approved indication.",
+                "Insert reviewed reasons to believe.",
+                "Add next-step CTA only after promotional review."
+            ],
+            medical_representative_talk_track=f"Draft only: close with a compliant, approved action once claims are reviewed.",
+            evidence_citation="SOURCE_NEEDED",
+            safety_fair_balance_footer="Include full prescribing information reference."
+        )
+    ]
+    
+    lbl = LBLBrief(
+        title=f"{brand} ({mol}) Clinical Leave-Behind Literature",
+        target_audience="Cardiologists, Endocrinologists, Nephrologists, and Consultant Physicians",
+        page_1_content_headline="Clinical Evidence Summary Pending Review",
+        page_1_clinical_evidence_summary="Add only source-backed clinical evidence with claim-level citations and limitations.",
+        page_2_dosing_and_safety_summary="Add approved dosing, warnings, contraindications, adverse reactions, and fair balance.",
+        call_to_action="Internal draft only. Final call to action requires promotional review.",
+        prescribing_info_footnote="Reference approved local prescribing information before external use."
+    )
+    
+    objections = [
+        MRObjectionHandling(
+            doctor_objection="My patient's HbA1c is already well controlled at 6.8% on Metformin. Why do I need to add your brand?",
+            underlying_concern="Doctor views the drug purely as a glucose-lowering agent rather than an organ-protective therapy.",
+            recommended_mr_response=f"Doctor, patient selection should follow the approved indication and local guideline context. I can share reviewed evidence once the claim, population, and safety balance have been approved for {brand}.",
+            supporting_clinical_trial="SOURCE_NEEDED",
+            recommended_visual_aid_page=1
+        ),
+        MRObjectionHandling(
+            doctor_objection="I am worried about the initial dip in eGFR after starting an SGLT2 inhibitor.",
+            underlying_concern="Concern that the transient eGFR drop indicates acute kidney injury (AKI).",
+            recommended_mr_response=f"Doctor, renal monitoring language must follow the approved local label for {brand}. We should review the label and relevant studies before discussing clinical implications.",
+            supporting_clinical_trial="SOURCE_NEEDED",
+            recommended_visual_aid_page=4
+        ),
+        MRObjectionHandling(
+            doctor_objection="What about the risk of genital mycotic infections in female patients?",
+            underlying_concern="Patient complaints and potential treatment discontinuation.",
+            recommended_mr_response=f"Doctor, adverse event frequency and counseling language should be taken directly from the approved prescribing information for {brand}. I will confirm the label wording before making a claim.",
+            supporting_clinical_trial="SOURCE_NEEDED",
+            recommended_visual_aid_page=5
+        )
+    ]
+    
+    patient_leaf = PatientEducationLeaflet(
+        title=f"Understanding Your Treatment with {brand} ({mol})",
+        plain_language_condition_summary="Patient education copy must be reviewed against the approved label and local patient information leaflet.",
+        how_this_medicine_works=f"Explain how {brand} works only after the mechanism is verified from an approved source.",
+        how_to_take_and_adherence="Insert approved dosing instructions from local prescribing information.",
+        what_to_expect_and_side_effects="Insert approved adverse reactions and instructions on when to contact a healthcare professional.",
+        lifestyle_and_diet_tips=[
+            "Drink 6 to 8 glasses of water daily unless your doctor has placed you on fluid restriction.",
+            "Maintain a balanced, low-sodium diet rich in vegetables, lean proteins, and fiber.",
+            "Take a 20-30 minute brisk walk every day to support your heart health.",
+            "Never stop taking your medication without consulting your doctor first."
+        ]
+    )
+    
+    return CreativeCommercialAssets(
+        molecule_name=mol,
+        brand_name=brand,
+        campaign_theme="Evidence-Led Care: Draft Campaign Theme Pending Review",
+        logo_direction="Clean modern typography with an interlocking double-shield icon representing heart and kidney unity.",
+        pack_mockup_brief="Premium 28-tablet blister pack in metallic deep blue and medical teal accents with embossed brand lettering and braille safety markings.",
+        visual_aid_slides=slides,
+        lbl_brief=lbl,
+        mr_objection_handling_guide=objections,
+        patient_education_leaflet=patient_leaf,
+        conference_booth_concept="An interactive 3D Cardio-Renal Experience Cube with immersive touchscreens demonstrating intraglomerular pressure reduction.",
+        digital_email_copy=f"Subject: Draft {brand} Evidence Update for Internal Review\n\nDear Doctor,\n\nThis copy is a placeholder. Insert only approved, source-backed claims for {brand} ({mol}) after MLR review.\n\n[Reviewed Evidence Link]",
+        banner_ad_copy=f"{brand} ({mol}) draft campaign copy. Not for external use until MLR approval."
+    )

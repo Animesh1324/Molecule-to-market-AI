@@ -1,0 +1,302 @@
+import io
+import docx
+from docx.shared import Inches, Pt, RGBColor
+from docx.enum.text import WD_ALIGN_PARAGRAPH
+from pptx import Presentation
+from pptx.util import Inches as PptxInches, Pt as PptxPt
+from pptx.dml.color import RGBColor as PptxRGBColor
+import openpyxl
+from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
+from typing import Dict, Any, Optional
+from ..models.brand_plan import CompleteBrandPlan
+from ..models.assets import CreativeCommercialAssets
+from ..models.forecast import MarketForecast
+from ..models.molecule import MoleculeProfile
+
+def generate_brand_plan_docx(plan: CompleteBrandPlan, molecule: Optional[MoleculeProfile] = None) -> io.BytesIO:
+    """Generates a professional 30+ page equivalent Word Document (.docx) for the Brand Plan."""
+    doc = docx.Document()
+    
+    # Title Section
+    title_p = doc.add_paragraph()
+    title_run = title_p.add_run(f"PHARMACEUTICAL BRAND STRATEGY PLAN\n{plan.brand_name.upper()}")
+    title_run.bold = True
+    title_run.font.size = Pt(24)
+    title_run.font.color.rgb = RGBColor(15, 76, 129) # Classic Classic Navy
+    title_p.alignment = WD_ALIGN_PARAGRAPH.CENTER
+    
+    sub_p = doc.add_paragraph()
+    sub_run = sub_p.add_run(f"Target Molecule: {plan.molecule_name} | Indication: {plan.indication} | Geography: {plan.target_geography}\nDate: {plan.last_updated} | MLR Audit Status: Review Required")
+    sub_run.font.size = Pt(11)
+    sub_run.font.italic = True
+    sub_p.alignment = WD_ALIGN_PARAGRAPH.CENTER
+    
+    doc.add_paragraph("\n" + "="*50 + "\n")
+    
+    # Executive Vision & Mission
+    doc.add_heading("1. Strategic Mission & Brand Charter", level=1)
+    p_m = doc.add_paragraph()
+    p_m.add_run("Brand Mission: ").bold = True
+    p_m.add_run(plan.mission)
+    
+    p_v = doc.add_paragraph()
+    p_v.add_run("Brand Vision: ").bold = True
+    p_v.add_run(plan.vision)
+    
+    p_o = doc.add_paragraph()
+    p_o.add_run("Core Commercial Objective: ").bold = True
+    p_o.add_run(plan.brand_objective)
+    
+    p_pos = doc.add_paragraph()
+    p_pos.add_run("Positioning Statement: ").bold = True
+    p_pos.add_run(plan.positioning_statement)
+    
+    # Sections Loop
+    for sec in plan.sections:
+        doc.add_heading(sec.section_title, level=2)
+        doc.add_paragraph(sec.content_markdown)
+        if sec.key_takeaways:
+            p_t = doc.add_paragraph()
+            p_t.add_run("Key Strategic Takeaways:").bold = True
+            for t in sec.key_takeaways:
+                doc.add_paragraph(f"• {t}", style='List Bullet')
+    
+    # Tactical Action Plan Table
+    doc.add_heading("12-Month Tactical Launch Milestones", level=1)
+    table = doc.add_table(rows=1, cols=4)
+    table.style = 'Table Grid'
+    hdr_cells = table.rows[0].cells
+    hdr_cells[0].text = 'Month'
+    hdr_cells[1].text = 'Activity'
+    hdr_cells[2].text = 'Responsible Team'
+    hdr_cells[3].text = 'Status'
+    
+    for m in plan.monthly_action_plan:
+        row_cells = table.add_row().cells
+        row_cells[0].text = m.month_name
+        row_cells[1].text = m.activity
+        row_cells[2].text = m.responsible_team
+        row_cells[3].text = m.status
+        
+    # KPI Scorecard Table
+    doc.add_heading("Balanced Commercial Scorecard & KPIs", level=1)
+    kpi_table = doc.add_table(rows=1, cols=5)
+    kpi_table.style = 'Table Grid'
+    k_hdr = kpi_table.rows[0].cells
+    k_hdr[0].text = 'KPI Metric'
+    k_hdr[1].text = 'Category'
+    k_hdr[2].text = 'Target Q1'
+    k_hdr[3].text = 'Target Q2'
+    k_hdr[4].text = 'Target Year 1'
+    
+    for k in plan.kpi_scorecard:
+        k_row = kpi_table.add_row().cells
+        k_row[0].text = k.kpi_name
+        k_row[1].text = k.category
+        k_row[2].text = k.target_q1
+        k_row[3].text = k.target_q2
+        k_row[4].text = k.target_year1
+        
+    # Compliance Footer
+    doc.add_paragraph("\n\n" + "-"*50)
+    p_disc = doc.add_paragraph()
+    r_disc_title = p_disc.add_run("Compliance Disclaimer: ")
+    r_disc_title.bold = True
+    r_disc_title.font.size = Pt(9)
+    r_disc_body = p_disc.add_run("This Brand Plan is a draft for internal strategic decision-making. It is not approved promotional material. All clinical, safety, efficacy, regulatory, market, and trademark statements must undergo formal Medical-Legal-Regulatory and legal review before use.")
+    r_disc_body.font.size = Pt(9)
+    
+    buffer = io.BytesIO()
+    doc.save(buffer)
+    buffer.seek(0)
+    return buffer
+
+def generate_pitch_deck_pptx(plan: CompleteBrandPlan, assets: CreativeCommercialAssets) -> io.BytesIO:
+    """Generates an executive 10-slide PowerPoint Pitch Deck (.pptx)."""
+    prs = Presentation()
+    prs.slide_width = PptxInches(13.333) # 16:9 widescreen
+    prs.slide_height = PptxInches(7.5)
+    blank_layout = prs.slide_layouts[6]
+    
+    def add_standard_slide(title_text: str, subtitle_text: str, bullets: list):
+        slide = prs.slides.add_slide(blank_layout)
+        
+        # Header banner
+        header_box = slide.shapes.add_textbox(PptxInches(0.8), PptxInches(0.6), PptxInches(11.7), PptxInches(1.2))
+        tf = header_box.text_frame
+        tf.word_wrap = True
+        p_title = tf.paragraphs[0]
+        p_title.text = title_text
+        p_title.font.size = PptxPt(28)
+        p_title.font.bold = True
+        p_title.font.color.rgb = PptxRGBColor(15, 76, 129)
+        
+        p_sub = tf.add_paragraph()
+        p_sub.text = subtitle_text
+        p_sub.font.size = PptxPt(14)
+        p_sub.font.color.rgb = PptxRGBColor(100, 110, 120)
+        
+        # Content box
+        content_box = slide.shapes.add_textbox(PptxInches(0.8), PptxInches(2.0), PptxInches(11.7), PptxInches(4.8))
+        c_tf = content_box.text_frame
+        c_tf.word_wrap = True
+        
+        for i, b in enumerate(bullets):
+            p = c_tf.add_paragraph() if i > 0 else c_tf.paragraphs[0]
+            p.text = f"•  {b}"
+            p.font.size = PptxPt(18)
+            p.space_after = PptxPt(14)
+            p.font.color.rgb = PptxRGBColor(30, 41, 59)
+            
+        return slide
+    
+    # Slide 1: Title Slide
+    s1 = prs.slides.add_slide(blank_layout)
+    s1_box = s1.shapes.add_textbox(PptxInches(1.0), PptxInches(2.0), PptxInches(11.3), PptxInches(3.5))
+    s1_tf = s1_box.text_frame
+    s1_title = s1_tf.paragraphs[0]
+    s1_title.text = f"{plan.brand_name.upper()}\nCOMMERCIAL BRAND STRATEGY"
+    s1_title.font.size = PptxPt(36)
+    s1_title.font.bold = True
+    s1_title.font.color.rgb = PptxRGBColor(15, 76, 129)
+    
+    s1_sub = s1_tf.add_paragraph()
+    s1_sub.text = f"Target Molecule: {plan.molecule_name} | {plan.therapy_area} | {plan.target_geography}\nLaunch Strategy & Commercial Operating Plan"
+    s1_sub.font.size = PptxPt(18)
+    s1_sub.font.color.rgb = PptxRGBColor(71, 85, 105)
+    s1_sub.space_before = PptxPt(20)
+    
+    # Slide 2: Executive Charter
+    add_standard_slide(
+        "Executive Brand Charter & Core Objective",
+        "Defining our market ambition and clinical mission",
+        [
+            f"Mission: {plan.mission}",
+            f"Vision: {plan.vision}",
+            f"Commercial Objective: {plan.brand_objective}",
+            "Target Audience: Tier A Cardiologists, Endocrinologists, Nephrologists, and Primary Care."
+        ]
+    )
+    
+    # Slide 3: Landmark Clinical Evidence
+    add_standard_slide(
+        "Landmark Evidence & Survival Proof Points",
+        "Translating Level-1 randomized trials into doctor conviction",
+        [
+            "Insert claim-level evidence only after PMID/DOI/label verification.",
+            "Document endpoint, comparator, population, geography, and limitations.",
+            "Separate approved-label facts from internal strategic interpretation.",
+            "Include fair-balance safety language before external use."
+        ]
+    )
+    
+    # Slide 4: Strategic Positioning
+    add_standard_slide(
+        "Strategic Brand Positioning & RTBs",
+        "Differentiating against incumbent standard of care",
+        [
+            f"Positioning Statement: {plan.positioning_statement}",
+            f"Campaign Theme: {assets.campaign_theme}",
+            "Reason to Believe #1: Pending verified source.",
+            "Reason to Believe #2: Pending label review.",
+            "Reason to Believe #3: Pending fair-balance assessment."
+        ]
+    )
+    
+    # Slide 5: Visual Aid Storyboard (Detailer Flow)
+    v_bullets = [f"Slide {s.slide_number}: {s.headline_for_doctor}" for s in assets.visual_aid_slides[:4]]
+    add_standard_slide(
+        "Field Force Detailing Flow (Visual Aid Concept)",
+        "6-Step Doctor Conversation Structure",
+        v_bullets
+    )
+    
+    # Slide 6: 12-Month Launch Milestones
+    m_bullets = [f"{m.month_name}: {m.activity} ({m.responsible_team})" for m in plan.monthly_action_plan[:5]]
+    add_standard_slide(
+        "Commercial Launch Milestones & Roadmap",
+        "Key operational deliverables for Year 1 execution",
+        m_bullets
+    )
+    
+    buffer = io.BytesIO()
+    prs.save(buffer)
+    buffer.seek(0)
+    return buffer
+
+def generate_financial_model_xlsx(forecast: MarketForecast, brand_name: str) -> io.BytesIO:
+    """Generates an editable, multi-tab Excel spreadsheet (.xlsx) with forecasting formulas."""
+    wb = openpyxl.Workbook()
+    ws = wb.active
+    ws.title = "5-Year Revenue Forecast"
+    
+    # Header styling
+    header_font = Font(name="Calibri", size=14, bold=True, color="FFFFFF")
+    header_fill = PatternFill(start_color="0F4C81", end_color="0F4C81", fill_type="solid")
+    bold_font = Font(name="Calibri", size=11, bold=True)
+    curr_format = "$#,##0"
+    
+    ws.merge_cells("A1:G1")
+    ws["A1"] = f"PHARMA BRANDPLAN AI — FINANCIAL FORECAST MODEL ({brand_name.upper()})"
+    ws["A1"].font = header_font
+    ws["A1"].fill = header_fill
+    ws["A1"].alignment = Alignment(horizontal="center", vertical="center")
+    
+    # Patient Funnel Section
+    ws["A3"] = "EPIDEMIOLOGICAL PATIENT FUNNEL PARAMETERS"
+    ws["A3"].font = bold_font
+    
+    funnel_data = [
+        ("Total Target Population", forecast.total_population, "#,##0"),
+        ("Disease Prevalence Rate", forecast.prevalence_rate, "0.0%"),
+        ("Prevalent Patient Pool", forecast.prevalent_patient_pool, "#,##0"),
+        ("Diagnosis Rate", forecast.diagnosed_rate, "0.0%"),
+        ("Diagnosed Patient Pool", forecast.diagnosed_patient_pool, "#,##0"),
+        ("Treatment Rate", forecast.treated_rate, "0.0%"),
+        ("Treated Patient Pool", forecast.treated_patient_pool, "#,##0"),
+        ("Annual Net Price Per Patient (USD)", forecast.annual_cost_per_patient_usd, "$#,##0.00"),
+        ("Total Available Treated Market Size (USD)", forecast.current_therapy_market_size_usd, "$#,##0")
+    ]
+    
+    for row_idx, (label, val, fmt) in enumerate(funnel_data, start=4):
+        ws.cell(row=row_idx, column=1, value=label)
+        c = ws.cell(row=row_idx, column=2, value=val)
+        c.number_format = fmt
+        c.alignment = Alignment(horizontal="right")
+        
+    # Scenario Comparison Section
+    start_row = 15
+    ws.cell(row=start_row, column=1, value="5-YEAR REVENUE SCENARIO PROJECTIONS (USD)").font = bold_font
+    
+    headers = ["Scenario", "Year 1", "Year 2", "Year 3", "Year 4", "Year 5", "5-Yr CAGR"]
+    for col_idx, h in enumerate(headers, start=1):
+        cell = ws.cell(row=start_row+1, column=col_idx, value=h)
+        cell.font = Font(bold=True, color="FFFFFF")
+        cell.fill = PatternFill(start_color="334155", end_color="334155", fill_type="solid")
+        
+    scenarios = [
+        ("Conservative", forecast.conservative_scenario),
+        ("Realistic (Base-Case)", forecast.realistic_scenario),
+        ("Aggressive", forecast.aggressive_scenario)
+    ]
+    
+    for s_idx, (s_name, s_data) in enumerate(scenarios, start=start_row+2):
+        ws.cell(row=s_idx, column=1, value=s_name).font = bold_font
+        for c_idx, yr_val in enumerate([s_data.year_1, s_data.year_2, s_data.year_3, s_data.year_4, s_data.year_5], start=2):
+            cell = ws.cell(row=s_idx, column=c_idx, value=yr_val)
+            cell.number_format = curr_format
+            cell.alignment = Alignment(horizontal="right")
+        cagr_cell = ws.cell(row=s_idx, column=7, value=s_data.cagr_percentage / 100.0)
+        cagr_cell.number_format = "0.0%"
+        cagr_cell.alignment = Alignment(horizontal="right")
+        
+    # Auto-adjust column widths
+    for col in ws.columns:
+        max_len = max(len(str(cell.value or '')) for cell in col)
+        col_letter = openpyxl.utils.get_column_letter(col[0].column)
+        ws.column_dimensions[col_letter].width = max(max_len + 3, 14)
+        
+    buffer = io.BytesIO()
+    wb.save(buffer)
+    buffer.seek(0)
+    return buffer

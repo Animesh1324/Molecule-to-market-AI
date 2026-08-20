@@ -1,0 +1,12 @@
+fastapi
+uvicorn
+sqlalchemy>=1.4
+pydantic
+python-dotenv
+python-multipart
+python-docx
+python-pptx
+openpyxl
+requests
+pytest
+httpx
