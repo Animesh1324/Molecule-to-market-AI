@@ -1,0 +1,14 @@
+.git
+.gitignore
+.vscode
+.DS_Store
+**/.DS_Store
+**/.venv
+**/__pycache__
+**/*.pyc
+**/*.pyo
+**/*.pyd
+**/node_modules
+**/.next
+backend/data/*.db
+frontend/.next

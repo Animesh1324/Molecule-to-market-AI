@@ -93,6 +93,32 @@ docker compose up --build
 - Backend: `http://localhost:8000`
 - Frontend: `http://localhost:3000`
 
+## Staging deployment (Render)
+
+This repo includes a Render deployment blueprint in [render.yaml](render.yaml). It is ready for a manual staging setup on Render.
+
+1. Create a new Render account and connect this GitHub repository.
+2. In the Render dashboard, create the backend service using the `backend` root directory and the Python environment.
+3. Set the following environment variables for the backend:
+
+```bash
+APP_ENV=production
+PORT=8000
+CORS_ORIGINS=https://<frontend-service-name>.onrender.com
+DATABASE_URL=
+OPENAI_API_KEY=
+```
+
+4. Create the frontend service using the `frontend` root directory and the Node environment.
+5. Set the frontend environment variable:
+
+```bash
+NEXT_PUBLIC_API_BASE=https://<backend-service-name>.onrender.com
+NEXT_PUBLIC_APP_ENV=production
+```
+
+6. Redeploy both services.
+
 ## Deployment notes
 
 - Use a managed PostgreSQL or SQLite file for production if the project is expanded beyond local development.

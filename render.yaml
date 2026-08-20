@@ -1,0 +1,32 @@
+services:
+  - type: web
+    name: pharma-brandplan-backend
+    env: python
+    rootDir: backend
+    plan: free
+    buildCommand: pip install --upgrade pip && pip install -r requirements.txt
+    startCommand: uvicorn app.main:app --host 0.0.0.0 --port $PORT
+    envVars:
+      - key: APP_ENV
+        value: production
+      - key: PORT
+        value: 8000
+      - key: CORS_ORIGINS
+        value: https://pharma-brandplan-frontend.onrender.com
+      - key: DATABASE_URL
+        sync: false
+      - key: OPENAI_API_KEY
+        sync: false
+
+  - type: web
+    name: pharma-brandplan-frontend
+    env: node
+    rootDir: frontend
+    plan: free
+    buildCommand: npm install && npm run build
+    startCommand: npm run start -- --hostname 0.0.0.0 --port $PORT
+    envVars:
+      - key: NEXT_PUBLIC_API_BASE
+        value: https://pharma-brandplan-backend.onrender.com
+      - key: NEXT_PUBLIC_APP_ENV
+        value: production
