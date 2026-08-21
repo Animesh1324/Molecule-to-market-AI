@@ -31,8 +31,11 @@ ALLOWED_EXTENSIONS = {
     ".csv", ".tsv", ".xlsx", ".xls", ".pdf", ".docx", ".doc",
     ".pptx", ".ppt", ".txt", ".json", ".png", ".jpg", ".jpeg",
 }
-MAX_BYTES = 25 * 1024 * 1024  # 25 MB
-CHUNK = 1024 * 1024
+# Real secondary-data files are large: an IMS/PharmaTrac base extract runs to
+# a few hundred MB. The body is streamed to disk in chunks, so the cap bounds
+# disk use rather than memory, and it stays configurable per deployment.
+MAX_BYTES = int(os.getenv("MAX_UPLOAD_MB", "300")) * 1024 * 1024
+CHUNK = 4 * 1024 * 1024
 
 _SAFE_PROJECT = re.compile(r"^[A-Za-z0-9_-]{1,64}$")
 
