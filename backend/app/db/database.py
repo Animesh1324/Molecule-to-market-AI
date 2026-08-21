@@ -70,6 +70,10 @@ class MLRAuditLogORM(Base):
 
 def init_db():
     """Create tables and seed a few default projects if none exist."""
+    # Importing registers the Drug Intelligence tables on Base before
+    # create_all runs; without this they are never created.
+    from . import drug_models  # noqa: F401
+
     Base.metadata.create_all(bind=engine)
     session = SessionLocal()
     try:

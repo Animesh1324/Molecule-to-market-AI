@@ -149,6 +149,30 @@ Check whether drafting is live:
 curl -s http://localhost:8000/ | python3 -m json.tool
 ```
 
+## Drug Intelligence module
+
+Normalised drug records — identity, clinical narrative, interactions,
+comparison, and a separated PMT analysis layer — served from the same FastAPI
+backend. Cache-first: a search hits the database and only reaches an upstream
+when nothing is stored.
+
+Sources go through an adapter interface (`backend/app/data_sources/`), so the
+application keeps working when any one upstream is unavailable:
+
+| Source | Status |
+| --- | --- |
+| openFDA | Enabled — public FDA API |
+| Drugs.com | Disabled without a licensed feed (`DRUGS_COM_API_KEY`) |
+| Manual import | Enabled — team-entered records |
+
+**Drugs.com is never scraped.** It returns HTTP 403 to programmatic requests,
+its terms prohibit automated extraction, and its content is copyrighted — and
+scraped text could not be cited in an MLR-reviewed plan regardless. The adapter
+targets the licensed Drugs.com/DrugBank feed and activates on configuration.
+For patient-reported problems the application uses FDA FAERS instead.
+
+Full documentation: [docs/DRUG_INTELLIGENCE.md](docs/DRUG_INTELLIGENCE.md).
+
 ## Known limitations
 
 Read these before using output in a real brand plan.

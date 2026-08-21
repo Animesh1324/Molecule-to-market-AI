@@ -10,6 +10,7 @@ from .api import (
     intelligence,
     lifecycle,
     competitors,
+    drugs,
     creative_assets,
     evidence,
     forecasting,
@@ -53,11 +54,20 @@ async def lifespan(app: FastAPI):
     yield
 
 
+# The interactive docs and OpenAPI schema enumerate every route and field.
+# They are built-in FastAPI routes, so a router-level dependency never covers
+# them — the only reliable way to protect them is not to mount them at all in
+# production. Locally they stay on, because that is where they are useful.
+_is_production = settings["app_env"] == "production"
+
 app = FastAPI(
     title="Pharma BrandPlan AI — Core API Engine",
     description="Enterprise pharmaceutical brand planning, clinical evidence synthesis, and commercialization platform.",
     version="1.0.0",
     lifespan=lifespan,
+    docs_url=None if _is_production else "/docs",
+    redoc_url=None if _is_production else "/redoc",
+    openapi_url=None if _is_production else "/openapi.json",
 )
 
 app.add_middleware(RateLimitMiddleware)
@@ -102,6 +112,7 @@ app.include_router(reports.router, dependencies=[Depends(require_access)])
 app.include_router(lifecycle.router, dependencies=[Depends(require_access)])
 app.include_router(uploads.router, dependencies=[Depends(require_access)])
 app.include_router(intelligence.router, dependencies=[Depends(require_access)])
+app.include_router(drugs.router, dependencies=[Depends(require_access)])
 
 
 @app.get("/")
@@ -110,7 +121,7 @@ async def root():
         "system": "Pharma BrandPlan AI Engine",
         "status": "Operational",
         "version": "1.0.0",
-        "modules_active": 14,
+        "modules_active": 15,
         "compliance_mode": "FDA OPDP / CDSCO UCPMP / EMA Fair Balance Active",
         "environment": settings["app_env"],
         "authentication": "required" if auth_required() else "open (no API_ACCESS_TOKEN set)",

@@ -23,8 +23,15 @@ from .config import get_settings
 
 logger = logging.getLogger(__name__)
 
-# Endpoints reachable without a token: liveness probes and the API's own docs.
-PUBLIC_PATHS = {"/", "/health", "/docs", "/redoc", "/openapi.json", "/favicon.ico"}
+# Always reachable without a token: liveness probes a load balancer must hit
+# before it can hold a credential.
+PUBLIC_PATHS = {"/", "/health", "/favicon.ico"}
+
+# The interactive docs and the OpenAPI schema enumerate every route and every
+# field name. That is fine on a developer machine and is an unnecessary
+# disclosure on a deployed instance holding pre-launch strategy, so they are
+# public only outside production.
+DEV_ONLY_PUBLIC_PATHS = {"/docs", "/redoc", "/openapi.json", "/docs/oauth2-redirect"}
 
 ACCESS_TOKEN_HEADER = "X-API-Key"
 
@@ -52,7 +59,10 @@ async def require_access(request: Request) -> None:
     """FastAPI dependency enforcing the access token on protected routes."""
     if not auth_required():
         return
-    if request.method == "OPTIONS" or request.url.path in PUBLIC_PATHS:
+    path = request.url.path
+    if request.method == "OPTIONS" or path in PUBLIC_PATHS:
+        return
+    if path in DEV_ONLY_PUBLIC_PATHS and get_settings()["app_env"] != "production":
         return
 
     supplied = request.headers.get(ACCESS_TOKEN_HEADER)
