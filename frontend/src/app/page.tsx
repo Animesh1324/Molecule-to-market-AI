@@ -149,7 +149,7 @@ export default function HomePage() {
                 <span>Active Pharma Brand Initiatives</span>
               </h2>
               <p className="text-xs text-slate-500 dark:text-slate-500 dark:text-slate-400 mt-0.5">
-                Select a project to access its 10 integrated scientific and commercial modules
+                Select a project to access its 15 integrated scientific and commercial modules
               </p>
             </div>
             <button

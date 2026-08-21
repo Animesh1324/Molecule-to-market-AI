@@ -5,6 +5,7 @@ import { useParams, useRouter } from 'next/navigation';
 import {
   Activity,
   BookOpen,
+  Users,
   TrendingUp,
   FileCheck2,
   FileText,
@@ -25,6 +26,10 @@ import {
 import Link from 'next/link';
 import Navbar from '../../../components/Navbar';
 import LifecyclePanel from '../../../components/LifecyclePanel';
+import PatientExperiencePanel from '../../../components/PatientExperiencePanel';
+import BrandNamesPanel from '../../../components/BrandNamesPanel';
+import CDSCOPanel from '../../../components/CDSCOPanel';
+import DrugIntelligencePanel from '../../../components/DrugIntelligencePanel';
 import SecondaryDataUploader from '../../../components/SecondaryDataUploader';
 import PatientFunnel from '../../../components/PatientFunnel';
 import ForecastCharts from '../../../components/ForecastCharts';
@@ -46,7 +51,10 @@ import {
   CompleteBrandPlan,
   CreativeCommercialAssets,
   MLRAuditEntry,
-  MoleculeLifecycle
+  MoleculeLifecycle,
+  PatientExperience,
+  BrandNameCandidates,
+  CDSCOIntelligence
 } from '../../../lib/types';
 
 import {
@@ -63,6 +71,9 @@ import {
   fetchCreativeAssets,
   fetchAuditTrail,
   fetchMoleculeLifecycle,
+  fetchPatientExperience,
+  fetchBrandNameCandidates,
+  fetchCDSCOIntelligence,
   getExportDocxUrl,
   getExportPptxUrl,
   getExportXlsxUrl
@@ -90,6 +101,9 @@ export default function ProjectWorkspacePage() {
   const [assets, setAssets] = useState<CreativeCommercialAssets | null>(null);
   const [auditTrail, setAuditTrail] = useState<MLRAuditEntry[]>([]);
   const [lifecycle, setLifecycle] = useState<MoleculeLifecycle | null>(null);
+  const [patientExperience, setPatientExperience] = useState<PatientExperience | null>(null);
+  const [brandNames, setBrandNames] = useState<BrandNameCandidates | null>(null);
+  const [cdsco, setCdsco] = useState<CDSCOIntelligence | null>(null);
 
   // Loading states
   const [loading, setLoading] = useState(true);
@@ -176,6 +190,15 @@ export default function ProjectWorkspacePage() {
         fetchMoleculeLifecycle(molName)
           .then(setLifecycle)
           .catch((e) => console.warn('Lifecycle unavailable:', e));
+        fetchPatientExperience(molName)
+          .then(setPatientExperience)
+          .catch((e) => console.warn('Patient experience unavailable:', e));
+        fetchBrandNameCandidates(molName, proj.therapy_area, proj.primary_indication, 10)
+          .then(setBrandNames)
+          .catch((e) => console.warn('Brand names unavailable:', e));
+        fetchCDSCOIntelligence(molName, proj.primary_indication)
+          .then(setCdsco)
+          .catch((e) => console.warn('CDSCO unavailable:', e));
       } catch (err) {
         console.error('Error loading project data:', err);
         setLoadError(
@@ -224,7 +247,11 @@ export default function ProjectWorkspacePage() {
     { id: 'brand_plan', label: '8. Brand Plan Builder', icon: Layers },
     { id: 'creative', label: '9. Creative & Detailing', icon: Sparkles },
     { id: 'reports', label: '10. Report Center & MLR', icon: Download },
-    { id: 'lifecycle', label: '11. Patents & Entry', icon: ShieldCheck }
+    { id: 'lifecycle', label: '11. Patents & Entry', icon: ShieldCheck },
+    { id: 'patient', label: '12. Patient Experience', icon: Users },
+    { id: 'naming', label: '13. Brand Names', icon: Sparkles },
+    { id: 'cdsco', label: '14. India / CDSCO', icon: FileCheck2 },
+    { id: 'druginfo', label: '15. Drug Intelligence', icon: BookOpen }
   ];
 
   if (loading) {
@@ -1488,6 +1515,49 @@ export default function ProjectWorkspacePage() {
             )}
             <SecondaryDataUploader projectId={project.id} />
           </div>
+        )}
+
+        {activeTab === 'patient' && (
+          <div className="space-y-6">
+            {patientExperience ? (
+              <PatientExperiencePanel data={patientExperience} />
+            ) : (
+              <div className="p-8 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-center space-y-2">
+                <div className="w-8 h-8 mx-auto rounded-full border-4 border-brand-500 border-t-transparent animate-spin" />
+                <p className="text-xs text-slate-500 dark:text-slate-400 font-mono">Loading FDA FAERS reports…</p>
+              </div>
+            )}
+          </div>
+        )}
+
+        {activeTab === 'naming' && (
+          <div className="space-y-6">
+            {brandNames ? (
+              <BrandNamesPanel data={brandNames} />
+            ) : (
+              <div className="p-8 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-center space-y-2">
+                <div className="w-8 h-8 mx-auto rounded-full border-4 border-brand-500 border-t-transparent animate-spin" />
+                <p className="text-xs text-slate-500 dark:text-slate-400 font-mono">Loading brand name candidates…</p>
+              </div>
+            )}
+          </div>
+        )}
+
+        {activeTab === 'cdsco' && (
+          <div className="space-y-6">
+            {cdsco ? (
+              <CDSCOPanel data={cdsco} />
+            ) : (
+              <div className="p-8 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-center space-y-2">
+                <div className="w-8 h-8 mx-auto rounded-full border-4 border-brand-500 border-t-transparent animate-spin" />
+                <p className="text-xs text-slate-500 dark:text-slate-400 font-mono">Loading CDSCO checklist…</p>
+              </div>
+            )}
+          </div>
+        )}
+
+        {activeTab === 'druginfo' && (
+          <DrugIntelligencePanel defaultMolecule={project.target_molecule_name} />
         )}
       </div>
 

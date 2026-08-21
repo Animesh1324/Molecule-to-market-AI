@@ -12,7 +12,13 @@ import {
   CreativeCommercialAssets,
   MLRAuditEntry,
   MoleculeLifecycle,
-  UploadedFile
+  UploadedFile,
+  PatientExperience,
+  BrandNameCandidates,
+  CDSCOIntelligence,
+  DrugSearchResult,
+  DrugComparison,
+  PMTAnalysis
 } from './types';
 
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE || 'http://localhost:8000';
@@ -281,4 +287,79 @@ export async function deleteUpload(projectId: string, fileId: string): Promise<v
 
 export function getUploadDownloadUrl(projectId: string, fileId: string): string {
   return `${API_BASE}/api/uploads/${encodeURIComponent(projectId)}/${encodeURIComponent(fileId)}/download`;
+}
+
+// --- Patient experience, naming, India regulatory ----------------------------
+
+export async function fetchPatientExperience(molecule: string): Promise<PatientExperience> {
+  const res = await fetch(
+    `${API_BASE}/api/intelligence/patient-experience?molecule=${encodeURIComponent(molecule)}`,
+    { headers: authHeaders() }
+  );
+  if (!res.ok) throw await apiError(res, 'Failed to fetch patient experience data');
+  return res.json();
+}
+
+export async function fetchBrandNameCandidates(
+  molecule: string,
+  therapyArea = '',
+  indication = '',
+  count = 10
+): Promise<BrandNameCandidates> {
+  const q = new URLSearchParams({
+    molecule,
+    therapy_area: therapyArea,
+    indication,
+    count: String(count),
+  });
+  const res = await fetch(`${API_BASE}/api/intelligence/brand-names?${q}`, {
+    headers: authHeaders(),
+  });
+  if (!res.ok) throw await apiError(res, 'Failed to generate brand names');
+  return res.json();
+}
+
+export async function fetchCDSCOIntelligence(
+  molecule: string,
+  indication = ''
+): Promise<CDSCOIntelligence> {
+  const q = new URLSearchParams({ molecule, indication });
+  const res = await fetch(`${API_BASE}/api/intelligence/cdsco?${q}`, {
+    headers: authHeaders(),
+  });
+  if (!res.ok) throw await apiError(res, 'Failed to fetch CDSCO checklist');
+  return res.json();
+}
+
+// --- Drug Intelligence -------------------------------------------------------
+
+export async function searchDrugs(query: string, pageSize = 10): Promise<DrugSearchResult> {
+  const q = new URLSearchParams({ q: query, page_size: String(pageSize) });
+  const res = await fetch(`${API_BASE}/api/drugs/search?${q}`, { headers: authHeaders() });
+  if (!res.ok) throw await apiError(res, 'Drug search failed');
+  return res.json();
+}
+
+export async function compareDrugs(drugA: string, drugB: string): Promise<DrugComparison> {
+  const res = await fetch(`${API_BASE}/api/drugs/compare`, {
+    method: 'POST',
+    headers: authHeaders({ 'Content-Type': 'application/json' }),
+    body: JSON.stringify({ drug_a: drugA, drug_b: drugB }),
+  });
+  if (!res.ok) throw await apiError(res, 'Drug comparison failed');
+  return res.json();
+}
+
+export async function fetchPMTAnalysis(
+  molecule: string,
+  competitors = ''
+): Promise<PMTAnalysis> {
+  const q = new URLSearchParams();
+  if (competitors) q.append('competitors', competitors);
+  const res = await fetch(
+    `${API_BASE}/api/drugs/pmt/${encodeURIComponent(molecule)}?${q}`,
+    { headers: authHeaders() }
+  );
+  if (!res.ok) throw await apiError(res, 'Failed to build PMT analysis');
+  return res.json();
 }

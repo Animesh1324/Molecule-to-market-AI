@@ -443,3 +443,183 @@ export interface UploadedFile {
   uploaded_at: string;
   note?: string | null;
 }
+
+// --- Patient experience (FDA FAERS) -----------------------------------------
+
+export interface ReportedProblem {
+  term: string;
+  report_count: number;
+  share_of_reports: number;
+}
+
+export interface DemographicSplit {
+  label: string;
+  count: number;
+}
+
+export interface PatientExperience {
+  query: string;
+  display_name: string;
+  components: string[];
+  is_combination: boolean;
+  total_reports: number;
+  serious_reports: number;
+  non_serious_reports: number;
+  top_reported_problems: ReportedProblem[];
+  discontinuation_signals: ReportedProblem[];
+  off_label_use_reports: number;
+  age_distribution: DemographicSplit[];
+  sex_distribution: DemographicSplit[];
+  patient_counselling_from_label: string[];
+  adherence_considerations: string[];
+  data_sources: string[];
+  coverage_note: string;
+  interpretation_caveat: string;
+}
+
+// --- Brand name candidates ---------------------------------------------------
+
+export interface BrandNameCandidate {
+  name: string;
+  rationale: string;
+  construction: string;
+  length: number;
+  syllable_estimate: number;
+  soundex: string;
+  exact_collision_with_marketed_brand: boolean;
+  phonetic_collision_with_marketed_brand: boolean;
+  screening_status: string;
+  ip_india_search_url: string;
+  ip_india_search_term: string;
+  uspto_search_url: string;
+  wipo_search_url: string;
+  verification_required: string;
+}
+
+export interface BrandNameCandidates {
+  molecule: string;
+  therapy_area: string;
+  indication: string;
+  candidates: BrandNameCandidate[];
+  screening_basis: string;
+  next_step: string;
+}
+
+// --- CDSCO India checklist ---------------------------------------------------
+
+export interface CDSCOChecklistItem {
+  step: string;
+  source_register: string;
+  url: string;
+  what_to_check: string;
+  why_it_matters: string;
+  blocks_launch: boolean;
+}
+
+export interface CDSCOIntelligence {
+  query: string;
+  display_name: string;
+  components: string[];
+  is_combination: boolean;
+  checklist: CDSCOChecklistItem[];
+  blocking_steps: string[];
+  automation_note: string;
+  india_specific_warning: string;
+}
+
+// --- Drug Intelligence -------------------------------------------------------
+
+export interface DrugSourceOut {
+  id?: string | null;
+  source_name: string;
+  source_url?: string | null;
+  source_identifier?: string | null;
+  data_version?: string | null;
+  published_at?: string | null;
+  attribution?: string | null;
+  confidence: string;
+  retrieved_at?: string | null;
+}
+
+export interface DrugOut {
+  id: string;
+  generic_name: string;
+  brand_name?: string | null;
+  active_ingredients: string[];
+  drug_class?: string | null;
+  therapeutic_class?: string | null;
+  dosage_forms: string[];
+  strengths: string[];
+  routes: string[];
+  manufacturer?: string | null;
+  indications?: string | null;
+  dosage?: string | null;
+  contraindications?: string | null;
+  warnings?: string | null;
+  precautions?: string | null;
+  adverse_effects?: string | null;
+  drug_interactions?: string | null;
+  pregnancy_information?: string | null;
+  lactation_information?: string | null;
+  mechanism?: string | null;
+  status: string;
+  created_at?: string | null;
+  updated_at?: string | null;
+  sources: DrugSourceOut[];
+}
+
+export interface DrugSearchResult {
+  items: DrugOut[];
+  total: number;
+  page: number;
+  page_size: number;
+  has_more: boolean;
+  query: string;
+  matched_on: string;
+  ingested_on_demand: boolean;
+  note: string;
+}
+
+export interface ComparisonField {
+  field: string;
+  label: string;
+  drug_a_value?: string | null;
+  drug_b_value?: string | null;
+  both_available: boolean;
+  differs: boolean;
+}
+
+export interface DrugComparison {
+  drug_a?: DrugOut | null;
+  drug_b?: DrugOut | null;
+  fields: ComparisonField[];
+  shared_interactions: unknown[];
+  fields_missing_for_both: string[];
+  comparison_note: string;
+  caveat: string;
+}
+
+export interface PMTProductProfile {
+  brand?: string | null;
+  generic?: string | null;
+  molecule?: string | null;
+  company?: string | null;
+  drug_class?: string | null;
+  indication_summary?: string | null;
+  dosage_summary?: string | null;
+}
+
+export interface PMTAnalysis {
+  analysis_type: string;
+  disclaimer: string;
+  product_profile: PMTProductProfile;
+  competitive_products: PMTProductProfile[];
+  positioning_observations: string[];
+  differentiation_candidates: string[];
+  competitive_advantages: string[];
+  competitive_disadvantages: string[];
+  target_patient_segment: string[];
+  target_physician_segment: string[];
+  evidence_gaps: string[];
+  source_records_used: string[];
+}

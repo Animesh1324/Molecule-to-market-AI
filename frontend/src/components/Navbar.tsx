@@ -59,7 +59,7 @@ export default function Navbar({ currentProjectId, projectTitle, moleculeName }:
             <AccessTokenGate />
           <ThemeToggle />
           <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></div>
-            <span className="text-slate-600 dark:text-slate-300 font-medium">11 Core Modules Active</span>
+            <span className="text-slate-600 dark:text-slate-300 font-medium">15 Core Modules Active</span>
           </div>
         </div>
       </div>
