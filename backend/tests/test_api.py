@@ -23,7 +23,7 @@ def test_root_endpoint():
     assert response.status_code == 200
     data = response.json()
     assert data["status"] == "Operational"
-    assert data["modules_active"] == 10
+    assert data["modules_active"] == 11
 
 def test_projects_list():
     response = client.get("/api/projects")
@@ -238,3 +238,64 @@ def test_export_rejects_nothing_but_still_names_the_file():
     response = client.get("/api/reports/export/xlsx", params={"brand_name": "///"})
     assert response.status_code == 200
     assert "filename=" in response.headers["content-disposition"]
+
+
+# --- combination molecules and lifecycle -------------------------------------
+
+def test_combination_resolver_splits_every_separator():
+    from app.services.molecule_resolver import resolve
+    for text in ["Empagliflozin + Metformin", "Empagliflozin and Metformin",
+                 "Empagliflozin/Metformin", "Empagliflozin, Metformin"]:
+        r = resolve(text)
+        assert r.is_combination, text
+        assert r.components == ["Empagliflozin", "Metformin"], text
+
+
+def test_combination_resolver_strips_salts_and_strengths():
+    from app.services.molecule_resolver import resolve
+    r = resolve("empagliflozin and metformin hydrochloride 500mg")
+    assert r.components == ["Empagliflozin", "Metformin"]
+    r2 = resolve("Clindamycin phosphate")
+    assert r2.components == ["Clindamycin"]
+    assert not r2.is_combination
+
+
+def test_inn_names_map_to_us_registry_names():
+    """An Indian brand team types INN names; US registries file under USAN."""
+    from app.services.inn_synonyms import candidates
+    assert "acetaminophen" in candidates("paracetamol")
+    assert "albuterol" in candidates("salbutamol")
+    assert "clavulanate" in candidates("clavulanic acid")
+    assert "rifampin" in candidates("rifampicin")
+    # Salt forms fall back to the base moiety.
+    assert "metformin" in candidates("metformin hydrochloride")
+
+
+def test_molecule_endpoint_handles_combination():
+    """PubChem 404s on combinations; the app must still return a profile."""
+    response = client.get("/api/molecules/search?name=Empagliflozin%20%2B%20Metformin")
+    assert response.status_code == 200
+    data = response.json()
+    assert data["generic_name"] == "Empagliflozin + Metformin"
+    assert data["chemical_class"] == "Fixed-dose combination"
+
+
+def test_lifecycle_endpoint_returns_innovator_and_patents():
+    response = client.get("/api/lifecycle/molecule?molecule=Empagliflozin")
+    assert response.status_code == 200
+    data = response.json()
+    assert data["display_name"] == "Empagliflozin"
+    # Orange Book may be unreachable in a sandboxed CI run; only assert shape
+    # when the data actually loaded.
+    if data["all_products"]:
+        assert data["innovator_company"]
+        assert data["patents"]
+    assert data["unavailable"], "commercial gaps must be declared, not implied"
+
+
+def test_lifecycle_endpoint_handles_combination():
+    response = client.get("/api/lifecycle/molecule?molecule=Empagliflozin+%2B+Metformin")
+    assert response.status_code == 200
+    data = response.json()
+    assert data["is_combination"] is True
+    assert data["components"] == ["Empagliflozin", "Metformin"]

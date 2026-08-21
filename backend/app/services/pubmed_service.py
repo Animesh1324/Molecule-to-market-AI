@@ -2,6 +2,7 @@ import httpx
 import logging
 from typing import List, Dict, Any, Optional
 from ..models.evidence import ResearchPaper, ClaimEvidenceMapping
+from .molecule_resolver import resolve as resolve_molecule
 
 logger = logging.getLogger(__name__)
 
@@ -192,14 +193,25 @@ async def search_pubmed_evidence(molecule_name: str, indication: Optional[str] =
     remain blank so downstream MLR review can distinguish evidence from gaps.
     """
     clean_name = molecule_name.strip().lower()
-    
+
     if clean_name in CURATED_PAPERS:
         return [ResearchPaper(**p) for p in CURATED_PAPERS[clean_name]]
-    
+
+    # A fixed-dose combination has to be searched as an AND of its components.
+    # Sending "Empagliflozin + Metformin[Title/Abstract]" as one phrase matches
+    # nothing, which is why combination searches came back empty.
+    resolved = resolve_molecule(molecule_name)
+    if resolved.is_combination:
+        combo_key = " + ".join(resolved.components).lower()
+        if combo_key in CURATED_PAPERS:
+            return [ResearchPaper(**p) for p in CURATED_PAPERS[combo_key]]
+
     # Try fetching live from NCBI E-Utilities
     papers: List[ResearchPaper] = []
     try:
-        query = f"{molecule_name}[Title/Abstract] AND (clinical trial[Filter] OR systematic review[Filter])"
+        terms = resolved.components or [molecule_name]
+        molecule_clause = " AND ".join(f"{t}[Title/Abstract]" for t in terms)
+        query = f"({molecule_clause}) AND (clinical trial[Filter] OR systematic review[Filter])"
         if indication:
             query += f" AND {indication}[Title/Abstract]"
         
@@ -209,7 +221,7 @@ async def search_pubmed_evidence(molecule_name: str, indication: Optional[str] =
                 "db": "pubmed",
                 "term": query,
                 "retmode": "json",
-                "retmax": "5",
+                "retmax": "25",
                 "sort": "pub_date"
             }
             search_resp = await client.get(esearch_url, params=params)

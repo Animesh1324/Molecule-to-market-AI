@@ -31,3 +31,5 @@ frontend/tsconfig.tsbuildinfo
 # Local database (regenerated on startup; never commit real project data)
 *.db
 backend/app/data/*.db
+
+backend/app/data/orange_book/

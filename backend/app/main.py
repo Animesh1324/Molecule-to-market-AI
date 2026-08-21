@@ -7,6 +7,7 @@ from fastapi.responses import JSONResponse
 
 from .api import (
     brand_plan,
+    lifecycle,
     competitors,
     creative_assets,
     evidence,
@@ -85,6 +86,7 @@ app.include_router(forecasting.router)
 app.include_router(brand_plan.router)
 app.include_router(creative_assets.router)
 app.include_router(reports.router)
+app.include_router(lifecycle.router)
 
 
 @app.get("/")
@@ -93,7 +95,7 @@ async def root():
         "system": "Pharma BrandPlan AI Engine",
         "status": "Operational",
         "version": "1.0.0",
-        "modules_active": 10,
+        "modules_active": 11,
         "compliance_mode": "FDA OPDP / CDSCO UCPMP / EMA Fair Balance Active",
         "environment": settings["app_env"],
         "ai_drafting": {

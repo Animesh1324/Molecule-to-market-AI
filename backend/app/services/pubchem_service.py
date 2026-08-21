@@ -2,6 +2,7 @@ import httpx
 import logging
 from typing import Optional, Dict, Any
 from ..models.molecule import MoleculeProfile, Pharmacokinetics, SpecialPopulations, AdverseEffects
+from .molecule_resolver import resolve as resolve_molecule
 
 logger = logging.getLogger(__name__)
 
@@ -317,6 +318,118 @@ CURATED_MOLECULES: Dict[str, Dict[str, Any]] = {
     }
 }
 
+async def _combination_profile(resolved) -> MoleculeProfile:
+    """Compose a fixed-dose-combination profile from each component's profile.
+
+    PubChem resolves single compounds only, so an FDC used to 404 and surface as
+    "molecule not found". Each component is looked up on its own (curated first,
+    then PubChem) and the results are merged, so a brand team sees the chemistry
+    and class of every moiety instead of an empty record.
+    """
+    component_profiles = []
+    for component in resolved.components:
+        try:
+            component_profiles.append(await fetch_molecule_intelligence(component))
+        except Exception as exc:  # one bad component must not sink the whole FDC
+            logger.warning("Component lookup failed for %s: %s", component, exc)
+
+    def _blank_pk():
+        return Pharmacokinetics(
+            absorption="Not verified", bioavailability="Not verified", tmax="Not verified",
+            distribution="Not verified", protein_binding="Not verified",
+            metabolism="Not verified", cyp_pathways=[], elimination="Not verified",
+            half_life="Not verified", clearance="Not verified",
+        )
+
+    def _blank_sp():
+        return SpecialPopulations(
+            pregnancy="Not verified", lactation="Not verified", pediatric="Not verified",
+            geriatric="Not verified", renal_impairment="Not verified",
+            hepatic_impairment="Not verified",
+        )
+
+    if not component_profiles:
+        return MoleculeProfile(
+            generic_name=resolved.display_name,
+            chemical_class="Not verified",
+            pharmacological_class="Not verified",
+            smiles="", molecular_formula="",
+            mechanism_of_action="No component of this combination could be resolved.",
+            pharmacodynamics="Not verified.",
+            pharmacokinetics=_blank_pk(),
+            adverse_effects=AdverseEffects(common=[], rare=[], serious=[]),
+            special_populations=_blank_sp(),
+            differentiating_science=(
+                f"No component of {resolved.display_name} resolved. Check the spelling "
+                "of each molecule in the combination."
+            ),
+        )
+
+    def merged_list(field: str):
+        out = []
+        for profile in component_profiles:
+            for item in getattr(profile, field, None) or []:
+                if item not in out:
+                    out.append(item)
+        return out
+
+    classes = [
+        f"{p.generic_name}: {p.pharmacological_class}"
+        for p in component_profiles
+        if p.pharmacological_class and p.pharmacological_class != "Not verified"
+    ]
+    moa = " | ".join(
+        f"{p.generic_name} — {p.mechanism_of_action}"
+        for p in component_profiles
+        if p.mechanism_of_action and not p.mechanism_of_action.startswith("No verified")
+    )
+    pd = " | ".join(
+        f"{p.generic_name} — {p.pharmacodynamics}"
+        for p in component_profiles
+        if p.pharmacodynamics and not p.pharmacodynamics.startswith("No verified")
+    )
+
+    adverse = AdverseEffects(
+        common=merged_list("adverse_effects.common") if False else
+            [a for p in component_profiles for a in (p.adverse_effects.common or [])],
+        rare=[a for p in component_profiles for a in (p.adverse_effects.rare or [])],
+        serious=[a for p in component_profiles for a in (p.adverse_effects.serious or [])],
+    )
+
+    return MoleculeProfile(
+        generic_name=resolved.display_name,
+        chemical_name=" ; ".join(p.chemical_name for p in component_profiles if p.chemical_name) or None,
+        chemical_class="Fixed-dose combination",
+        pharmacological_class="; ".join(classes) or "Not verified",
+        cas_number=None,
+        pubchem_cid=None,
+        smiles=".".join(p.smiles for p in component_profiles if p.smiles),
+        molecular_formula=" + ".join(p.molecular_formula for p in component_profiles if p.molecular_formula),
+        molecular_weight=None,
+        mechanism_of_action=moa or "Not verified for the combination.",
+        pharmacodynamics=pd or "Not verified for the combination.",
+        pharmacokinetics=_blank_pk(),
+        approved_indications=merged_list("approved_indications"),
+        investigational_indications=merged_list("investigational_indications"),
+        dosage_forms=merged_list("dosage_forms"),
+        routes_of_administration=merged_list("routes_of_administration"),
+        standard_dosages=[],
+        contraindications=merged_list("contraindications"),
+        black_box_warnings=merged_list("black_box_warnings"),
+        drug_interactions=merged_list("drug_interactions"),
+        adverse_effects=adverse,
+        special_populations=_blank_sp(),
+        differentiating_science=(
+            f"{resolved.display_name} is a fixed-dose combination of "
+            f"{len(component_profiles)} moieties. Component chemistry and class are merged "
+            "above. Combination-specific pharmacokinetics, efficacy, safety, and interaction "
+            "data must come from the approved combination label — they cannot be inferred "
+            "from the individual molecules."
+        ),
+        key_targets=merged_list("key_targets"),
+    )
+
+
 async def fetch_molecule_intelligence(molecule_name: str) -> MoleculeProfile:
     """Fetch molecule profile from curated database or PubChem REST API.
 
@@ -325,10 +438,17 @@ async def fetch_molecule_intelligence(molecule_name: str) -> MoleculeProfile:
     as unavailable until validated from regulatory/scientific sources.
     """
     clean_name = molecule_name.strip().lower()
-    
+
     if clean_name in CURATED_MOLECULES:
         data = CURATED_MOLECULES[clean_name]
         return MoleculeProfile(**data)
+
+    # PubChem resolves single compounds only — a fixed-dose combination returns
+    # 404 and used to surface as "molecule not found". Build the combination
+    # profile from its components instead.
+    resolved = resolve_molecule(molecule_name)
+    if resolved.is_combination:
+        return await _combination_profile(resolved)
     
     # Try querying PubChem REST API
     try:

@@ -2,6 +2,7 @@ import httpx
 import logging
 from typing import List, Dict, Any, Optional
 from ..models.trials import ClinicalTrial, ClinicalTrialLandscape
+from .molecule_resolver import resolve as resolve_molecule
 
 logger = logging.getLogger(__name__)
 
@@ -230,9 +231,15 @@ async def fetch_clinical_trial_landscape(molecule_name: str, indication: Optiona
     try:
         async with httpx.AsyncClient(timeout=8.0) as client:
             url = f"https://clinicaltrials.gov/api/v2/studies"
+            # For a combination, every component must appear as an
+            # intervention; passing the joined string matches no study.
+            resolved = resolve_molecule(molecule_name)
+            intervention = (
+                " AND ".join(resolved.components) if resolved.is_combination else molecule_name
+            )
             params = {
-                "query.intr": molecule_name,
-                "pageSize": "5",
+                "query.intr": intervention,
+                "pageSize": "25",
                 "format": "json"
             }
             if indication:
