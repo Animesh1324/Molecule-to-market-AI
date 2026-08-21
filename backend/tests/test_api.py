@@ -23,7 +23,7 @@ def test_root_endpoint():
     assert response.status_code == 200
     data = response.json()
     assert data["status"] == "Operational"
-    assert data["modules_active"] == 11
+    assert data["modules_active"] == 14
 
 def test_projects_list():
     response = client.get("/api/projects")
@@ -299,3 +299,60 @@ def test_lifecycle_endpoint_handles_combination():
     data = response.json()
     assert data["is_combination"] is True
     assert data["components"] == ["Empagliflozin", "Metformin"]
+
+
+# --- patient experience, brand naming, CDSCO ---------------------------------
+
+def test_brand_names_are_novel_and_shaped_for_recall():
+    """Candidates must not collide with marketed brands and must stay short."""
+    response = client.get(
+        "/api/intelligence/brand-names?molecule=Empagliflozin"
+        "&therapy_area=Cardiometabolic&indication=Heart+Failure&count=10"
+    )
+    assert response.status_code == 200
+    body = response.json()
+    candidates = body["candidates"]
+    if not candidates:
+        return  # Orange Book unreachable in a sandboxed run
+    assert len(candidates) <= 10
+    for c in candidates:
+        assert not c["exact_collision_with_marketed_brand"], c["name"]
+        assert 5 <= c["length"] <= 9, c["name"]
+        assert c["name"].isalpha()
+        for key in ("ip_india_search_url", "uspto_search_url", "wipo_search_url"):
+            assert c[key].startswith("http"), key
+    # Names must be distinct.
+    names = [c["name"] for c in candidates]
+    assert len(names) == len(set(names))
+
+
+def test_brand_names_reflect_therapy_area():
+    onc = client.get(
+        "/api/intelligence/brand-names?molecule=Pembrolizumab&therapy_area=Immuno-Oncology&count=8"
+    ).json()["candidates"]
+    if onc:
+        assert all(c["name"].isalpha() for c in onc)
+
+
+def test_cdsco_checklist_covers_india_specific_blockers():
+    response = client.get("/api/intelligence/cdsco?molecule=Empagliflozin+%2B+Metformin")
+    assert response.status_code == 200
+    data = response.json()
+    assert data["is_combination"] is True
+    steps = " ".join(i["step"] for i in data["checklist"]).lower()
+    # The India-specific traps a US-derived plan misses.
+    for expected in ("fixed-dose", "schedule", "price control", "trademark"):
+        assert expected in steps, expected
+    assert data["blocking_steps"]
+    assert all(i["url"].startswith("http") for i in data["checklist"])
+
+
+def test_patient_experience_declares_its_caveat():
+    """FAERS counts must never be presented without the incidence caveat."""
+    response = client.get("/api/intelligence/patient-experience?molecule=Empagliflozin")
+    assert response.status_code == 200
+    data = response.json()
+    caveat = data["interpretation_caveat"].lower()
+    assert "not incidence" in caveat or "incidence" in caveat
+    assert "spontaneous" in caveat
+    assert data["data_sources"]

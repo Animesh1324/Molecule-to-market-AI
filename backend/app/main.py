@@ -7,6 +7,7 @@ from fastapi.responses import JSONResponse
 
 from .api import (
     brand_plan,
+    intelligence,
     lifecycle,
     competitors,
     creative_assets,
@@ -100,6 +101,7 @@ app.include_router(creative_assets.router, dependencies=[Depends(require_access)
 app.include_router(reports.router, dependencies=[Depends(require_access)])
 app.include_router(lifecycle.router, dependencies=[Depends(require_access)])
 app.include_router(uploads.router, dependencies=[Depends(require_access)])
+app.include_router(intelligence.router, dependencies=[Depends(require_access)])
 
 
 @app.get("/")
@@ -108,7 +110,7 @@ async def root():
         "system": "Pharma BrandPlan AI Engine",
         "status": "Operational",
         "version": "1.0.0",
-        "modules_active": 11,
+        "modules_active": 14,
         "compliance_mode": "FDA OPDP / CDSCO UCPMP / EMA Fair Balance Active",
         "environment": settings["app_env"],
         "authentication": "required" if auth_required() else "open (no API_ACCESS_TOKEN set)",
