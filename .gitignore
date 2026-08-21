@@ -33,3 +33,5 @@ frontend/tsconfig.tsbuildinfo
 backend/app/data/*.db
 
 backend/app/data/orange_book/
+
+backend/app/data/uploads/

@@ -54,24 +54,24 @@ export default function ForecastCharts({ forecast }: ForecastChartsProps) {
   const formatYAxis = (val: number) => `$${val.toFixed(0)}M`;
 
   return (
-    <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6">
+    <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-6">
       <div className="flex flex-wrap items-center justify-between gap-4 mb-6">
         <div>
-          <h3 className="text-lg font-bold text-slate-100">5-Year Multi-Scenario Revenue Trajectory</h3>
-          <p className="text-xs text-slate-400">Comparing Conservative, Base-Case Realistic, and Aggressive Guideline Adoption</p>
+          <h3 className="text-lg font-bold text-slate-800 dark:text-slate-100">5-Year Multi-Scenario Revenue Trajectory</h3>
+          <p className="text-xs text-slate-500 dark:text-slate-500 dark:text-slate-400">Comparing Conservative, Base-Case Realistic, and Aggressive Guideline Adoption</p>
         </div>
         <div className="flex items-center space-x-4 text-xs">
           <div className="flex items-center space-x-1.5">
             <span className="w-3 h-3 rounded-full bg-slate-500"></span>
-            <span className="text-slate-300">Conservative ({forecast.conservative_scenario.cagr_percentage}% CAGR)</span>
+            <span className="text-slate-600 dark:text-slate-300">Conservative ({forecast.conservative_scenario.cagr_percentage}% CAGR)</span>
           </div>
           <div className="flex items-center space-x-1.5">
             <span className="w-3 h-3 rounded-full bg-brand-500"></span>
-            <span className="text-slate-300 font-semibold">Realistic ({forecast.realistic_scenario.cagr_percentage}% CAGR)</span>
+            <span className="text-slate-600 dark:text-slate-300 font-semibold">Realistic ({forecast.realistic_scenario.cagr_percentage}% CAGR)</span>
           </div>
           <div className="flex items-center space-x-1.5">
             <span className="w-3 h-3 rounded-full bg-emerald-400"></span>
-            <span className="text-slate-300">Aggressive ({forecast.aggressive_scenario.cagr_percentage}% CAGR)</span>
+            <span className="text-slate-600 dark:text-slate-300">Aggressive ({forecast.aggressive_scenario.cagr_percentage}% CAGR)</span>
           </div>
         </div>
       </div>
@@ -107,29 +107,29 @@ export default function ForecastCharts({ forecast }: ForecastChartsProps) {
         </ResponsiveContainer>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-6 pt-6 border-t border-slate-800">
-        <div className="p-3.5 rounded-xl bg-slate-950/60 border border-slate-800">
-          <div className="text-xs text-slate-400 font-medium">Conservative Peak (Yr 5)</div>
-          <div className="text-xl font-bold text-slate-300 font-mono mt-1">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-6 pt-6 border-t border-slate-200 dark:border-slate-800">
+        <div className="p-3.5 rounded-xl bg-slate-50 dark:bg-slate-950/60 border border-slate-200 dark:border-slate-800">
+          <div className="text-xs text-slate-500 dark:text-slate-500 dark:text-slate-400 font-medium">Conservative Peak (Yr 5)</div>
+          <div className="text-xl font-bold text-slate-600 dark:text-slate-300 font-mono mt-1">
             ${(forecast.conservative_scenario.year_5 / 1e6).toFixed(1)}M
           </div>
-          <div className="text-[11px] text-slate-500 mt-0.5">Assumes heavy generic discounting & slow uptake</div>
+          <div className="text-[11px] text-slate-500 dark:text-slate-500 mt-0.5">Assumes heavy generic discounting & slow uptake</div>
         </div>
 
         <div className="p-3.5 rounded-xl bg-brand-950/40 border border-brand-800/60">
-          <div className="text-xs text-brand-300 font-medium">Realistic Base-Case Peak (Yr 5)</div>
-          <div className="text-xl font-bold text-brand-400 font-mono mt-1">
+          <div className="text-xs text-brand-700 dark:text-brand-300 font-medium">Realistic Base-Case Peak (Yr 5)</div>
+          <div className="text-xl font-bold text-brand-700 dark:text-brand-400 font-mono mt-1">
             ${(forecast.realistic_scenario.year_5 / 1e6).toFixed(1)}M
           </div>
-          <div className="text-[11px] text-brand-300/70 mt-0.5">Standard field execution & guideline backing</div>
+          <div className="text-[11px] text-brand-700 dark:text-brand-300/70 mt-0.5">Standard field execution & guideline backing</div>
         </div>
 
         <div className="p-3.5 rounded-xl bg-emerald-950/40 border border-emerald-800/60">
-          <div className="text-xs text-emerald-300 font-medium">Aggressive Peak (Yr 5)</div>
-          <div className="text-xl font-bold text-emerald-400 font-mono mt-1">
+          <div className="text-xs text-emerald-700 dark:text-emerald-300 font-medium">Aggressive Peak (Yr 5)</div>
+          <div className="text-xl font-bold text-emerald-700 dark:text-emerald-400 font-mono mt-1">
             ${(forecast.aggressive_scenario.year_5 / 1e6).toFixed(1)}M
           </div>
-          <div className="text-[11px] text-emerald-300/70 mt-0.5">First-line class endorsement & rapid digital scale</div>
+          <div className="text-[11px] text-emerald-700 dark:text-emerald-300/70 mt-0.5">First-line class endorsement & rapid digital scale</div>
         </div>
       </div>
     </div>

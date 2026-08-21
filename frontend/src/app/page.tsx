@@ -87,22 +87,22 @@ export default function HomePage() {
   };
 
   return (
-    <div className="min-h-screen bg-slate-950 flex flex-col">
+    <div className="min-h-screen bg-slate-50 dark:bg-slate-950 flex flex-col">
       <Navbar />
 
       {/* Hero Section */}
-      <section className="relative overflow-hidden border-b border-slate-800/80 bg-gradient-to-b from-slate-900/60 via-slate-950 to-slate-950 py-16 px-6">
+      <section className="relative overflow-hidden border-b border-slate-200 dark:border-slate-800/80 bg-gradient-to-b from-slate-900/60 via-slate-950 to-slate-950 py-16 px-6">
         <div className="max-w-6xl mx-auto text-center space-y-5">
-          <div className="inline-flex items-center space-x-2 px-3.5 py-1.5 rounded-full bg-brand-950/80 border border-brand-800/60 text-brand-300 text-xs font-mono tracking-wide">
-            <Sparkles className="w-3.5 h-3.5 text-teal-400" />
+          <div className="inline-flex items-center space-x-2 px-3.5 py-1.5 rounded-full bg-brand-950/80 border border-brand-800/60 text-brand-700 dark:text-brand-300 text-xs font-mono tracking-wide">
+            <Sparkles className="w-3.5 h-3.5 text-teal-700 dark:text-teal-400" />
             <span>AI Operating System for Pharma Commercialization</span>
           </div>
 
-          <h1 className="text-4xl md:text-5xl lg:text-6xl font-extrabold text-white tracking-tight leading-tight max-w-4xl mx-auto">
+          <h1 className="text-4xl md:text-5xl lg:text-6xl font-extrabold text-slate-900 dark:text-white tracking-tight leading-tight max-w-4xl mx-auto">
             From <span className="bg-gradient-to-r from-teal-400 via-brand-400 to-indigo-400 bg-clip-text text-transparent">Molecule Discovery</span> to Market-Dominating <span className="underline decoration-brand-500 underline-offset-8">Brand Plan</span>
           </h1>
 
-          <p className="text-base md:text-lg text-slate-400 max-w-2xl mx-auto leading-relaxed">
+          <p className="text-base md:text-lg text-slate-500 dark:text-slate-500 dark:text-slate-400 max-w-2xl mx-auto leading-relaxed">
             Unify pharmacology, landmark PubMed trials, FDA/CDSCO labels, trademark vetting, epidemiological forecasting, and doctor visual aids in a single, audit-ready platform.
           </p>
 
@@ -114,7 +114,7 @@ export default function HomePage() {
                 setPrimaryIndication('');
                 setShowCreateModal(true);
               }}
-              className="flex items-center space-x-2 px-6 py-3.5 rounded-xl bg-gradient-to-r from-brand-600 to-teal-600 hover:from-brand-500 hover:to-teal-500 text-white font-semibold shadow-lg shadow-brand-500/25 transition-transform hover:scale-105"
+              className="flex items-center space-x-2 px-6 py-3.5 rounded-xl bg-gradient-to-r from-brand-600 to-teal-600 hover:from-brand-500 hover:to-teal-500 text-slate-900 dark:text-white font-semibold shadow-lg shadow-brand-500/25 transition-transform hover:scale-105"
             >
               <Plus className="w-5 h-5" />
               <span>Create New Brand Initiative</span>
@@ -123,14 +123,14 @@ export default function HomePage() {
 
           {/* Preset quick pills */}
           <div className="pt-6 flex flex-wrap items-center justify-center gap-2 text-xs">
-            <span className="text-slate-500 mr-1">Quick Start Presets:</span>
+            <span className="text-slate-500 dark:text-slate-500 mr-1">Quick Start Presets:</span>
             {PRESET_MOLECULES.map((preset, idx) => (
               <button
                 key={idx}
                 onClick={() => handleSelectPreset(preset)}
-                className="px-3 py-1.5 rounded-lg bg-slate-900 hover:bg-slate-800 border border-slate-800 text-slate-300 hover:text-white transition flex items-center space-x-1.5"
+                className="px-3 py-1.5 rounded-lg bg-white dark:bg-slate-900 hover:bg-slate-800 border border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-300 hover:text-white transition flex items-center space-x-1.5"
               >
-                <Activity className="w-3.5 h-3.5 text-teal-400" />
+                <Activity className="w-3.5 h-3.5 text-teal-700 dark:text-teal-400" />
                 <span>{preset.name}</span>
               </button>
             ))}
@@ -144,17 +144,17 @@ export default function HomePage() {
         <div>
           <div className="flex items-center justify-between mb-6">
             <div>
-              <h2 className="text-xl font-bold text-slate-100 flex items-center space-x-2">
-                <Layers className="w-5 h-5 text-brand-400" />
+              <h2 className="text-xl font-bold text-slate-800 dark:text-slate-100 flex items-center space-x-2">
+                <Layers className="w-5 h-5 text-brand-700 dark:text-brand-400" />
                 <span>Active Pharma Brand Initiatives</span>
               </h2>
-              <p className="text-xs text-slate-400 mt-0.5">
+              <p className="text-xs text-slate-500 dark:text-slate-500 dark:text-slate-400 mt-0.5">
                 Select a project to access its 10 integrated scientific and commercial modules
               </p>
             </div>
             <button
               onClick={() => setShowCreateModal(true)}
-              className="flex items-center space-x-1.5 text-xs font-semibold text-brand-400 hover:text-brand-300 transition"
+              className="flex items-center space-x-1.5 text-xs font-semibold text-brand-700 dark:text-brand-400 hover:text-brand-300 transition"
             >
               <Plus className="w-4 h-4" />
               <span>New Initiative</span>
@@ -162,13 +162,13 @@ export default function HomePage() {
           </div>
 
           {loading ? (
-            <div className="p-12 text-center text-slate-500">Loading initiatives...</div>
+            <div className="p-12 text-center text-slate-500 dark:text-slate-500">Loading initiatives...</div>
           ) : projects.length === 0 ? (
-            <div className="p-12 rounded-2xl bg-slate-900 border border-slate-800 text-center space-y-3">
-              <p className="text-slate-400">No initiatives created yet.</p>
+            <div className="p-12 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-center space-y-3">
+              <p className="text-slate-500 dark:text-slate-500 dark:text-slate-400">No initiatives created yet.</p>
               <button
                 onClick={() => setShowCreateModal(true)}
-                className="px-4 py-2 rounded-lg bg-brand-600 text-white text-sm font-medium"
+                className="px-4 py-2 rounded-lg bg-brand-600 text-slate-900 dark:text-white text-sm font-medium"
               >
                 Create Your First Brand Plan
               </button>
@@ -179,34 +179,34 @@ export default function HomePage() {
                 <Link
                   key={proj.id}
                   href={`/project/${proj.id}`}
-                  className="group block p-6 rounded-2xl bg-slate-900 border border-slate-800 hover:border-brand-500/50 hover:bg-slate-850 transition-all shadow-lg hover:shadow-brand-500/10 flex flex-col justify-between space-y-6"
+                  className="group block p-6 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 hover:border-brand-500/50 hover:bg-slate-850 transition-all shadow-lg hover:shadow-brand-500/10 flex flex-col justify-between space-y-6"
                 >
                   <div className="space-y-3">
                     <div className="flex items-center justify-between">
-                      <span className="text-xs font-mono px-2.5 py-1 rounded-full bg-brand-950 text-brand-400 border border-brand-800">
+                      <span className="text-xs font-mono px-2.5 py-1 rounded-full bg-brand-950 text-brand-700 dark:text-brand-400 border border-brand-800">
                         {proj.therapy_area}
                       </span>
-                      <span className="text-xs font-medium text-emerald-400 flex items-center space-x-1">
+                      <span className="text-xs font-medium text-emerald-700 dark:text-emerald-400 flex items-center space-x-1">
                         <CheckCircle2 className="w-3.5 h-3.5" />
                         <span>Draft Workspace</span>
                       </span>
                     </div>
 
-                    <h3 className="text-xl font-bold text-white group-hover:text-brand-300 transition">
+                    <h3 className="text-xl font-bold text-slate-900 dark:text-white group-hover:text-brand-300 transition">
                       {proj.title}
                     </h3>
 
-                    <p className="text-xs text-slate-400 line-clamp-2">
-                      <strong className="text-slate-300">Indication:</strong> {proj.primary_indication}
+                    <p className="text-xs text-slate-500 dark:text-slate-500 dark:text-slate-400 line-clamp-2">
+                      <strong className="text-slate-600 dark:text-slate-300">Indication:</strong> {proj.primary_indication}
                     </p>
                   </div>
 
-                  <div className="pt-4 border-t border-slate-800/80 flex items-center justify-between text-xs text-slate-400">
+                  <div className="pt-4 border-t border-slate-200 dark:border-slate-800/80 flex items-center justify-between text-xs text-slate-500 dark:text-slate-500 dark:text-slate-400">
                     <div className="flex items-center space-x-3">
-                      <span>Molecule: <strong className="text-slate-200">{proj.target_molecule_name}</strong></span>
-                      <span>Market: <strong className="text-slate-200">{proj.target_geography}</strong></span>
+                      <span>Molecule: <strong className="text-slate-700 dark:text-slate-200">{proj.target_molecule_name}</strong></span>
+                      <span>Market: <strong className="text-slate-700 dark:text-slate-200">{proj.target_geography}</strong></span>
                     </div>
-                    <span className="flex items-center space-x-1 text-brand-400 font-semibold group-hover:translate-x-1 transition-transform">
+                    <span className="flex items-center space-x-1 text-brand-700 dark:text-brand-400 font-semibold group-hover:translate-x-1 transition-transform">
                       <span>Open Workspace</span>
                       <ArrowRight className="w-3.5 h-3.5" />
                     </span>
@@ -218,10 +218,10 @@ export default function HomePage() {
         </div>
 
         {/* The 10 Modules Feature Overview */}
-        <div className="pt-8 border-t border-slate-800/80 space-y-6">
+        <div className="pt-8 border-t border-slate-200 dark:border-slate-800/80 space-y-6">
           <div className="text-center space-y-2">
-            <h2 className="text-2xl font-bold text-slate-100">10 Integrated Commercialization Modules</h2>
-            <p className="text-xs text-slate-400 max-w-xl mx-auto">
+            <h2 className="text-2xl font-bold text-slate-800 dark:text-slate-100">10 Integrated Commercialization Modules</h2>
+            <p className="text-xs text-slate-500 dark:text-slate-500 dark:text-slate-400 max-w-xl mx-auto">
               Everything required to take a compound from pharmacological validation to final field force execution
             </p>
           </div>
@@ -241,12 +241,12 @@ export default function HomePage() {
             ].map((mod, idx) => {
               const Icon = mod.icon;
               return (
-                <div key={idx} className="p-4 rounded-xl bg-slate-900/60 border border-slate-800/80 space-y-2">
-                  <div className="w-8 h-8 rounded-lg bg-slate-800 flex items-center justify-center text-teal-400">
+                <div key={idx} className="p-4 rounded-xl bg-white dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800/80 space-y-2">
+                  <div className="w-8 h-8 rounded-lg bg-slate-200 dark:bg-slate-800 flex items-center justify-center text-teal-700 dark:text-teal-400">
                     <Icon className="w-4 h-4" />
                   </div>
-                  <h4 className="text-sm font-bold text-slate-200">{mod.title}</h4>
-                  <p className="text-xs text-slate-400 leading-relaxed">{mod.desc}</p>
+                  <h4 className="text-sm font-bold text-slate-700 dark:text-slate-200">{mod.title}</h4>
+                  <p className="text-xs text-slate-500 dark:text-slate-500 dark:text-slate-400 leading-relaxed">{mod.desc}</p>
                 </div>
               );
             })}
@@ -256,16 +256,16 @@ export default function HomePage() {
 
       {/* Modal: Create New Initiative */}
       {showCreateModal && (
-        <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-slate-900 border border-slate-800 rounded-2xl max-w-lg w-full p-6 shadow-2xl space-y-6">
-            <div className="flex items-center justify-between border-b border-slate-800 pb-4">
-              <h3 className="text-lg font-bold text-white flex items-center space-x-2">
-                <Sparkles className="w-5 h-5 text-brand-400" />
+        <div className="fixed inset-0 z-50 bg-slate-50 dark:bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl max-w-lg w-full p-6 shadow-2xl space-y-6">
+            <div className="flex items-center justify-between border-b border-slate-200 dark:border-slate-800 pb-4">
+              <h3 className="text-lg font-bold text-slate-900 dark:text-white flex items-center space-x-2">
+                <Sparkles className="w-5 h-5 text-brand-700 dark:text-brand-400" />
                 <span>Initialize Brand Plan Strategy</span>
               </h3>
               <button
                 onClick={() => setShowCreateModal(false)}
-                className="text-slate-400 hover:text-white text-sm"
+                className="text-slate-500 dark:text-slate-500 dark:text-slate-400 hover:text-white text-sm"
               >
                 ✕
               </button>
@@ -273,44 +273,44 @@ export default function HomePage() {
 
             <form onSubmit={handleCreateSubmit} className="space-y-4 text-xs">
               <div>
-                <label className="block text-slate-300 font-semibold mb-1">Target Molecule Name (Generic/INN) *</label>
+                <label className="block text-slate-600 dark:text-slate-300 font-semibold mb-1">Target Molecule Name (Generic/INN) *</label>
                 <input
                   type="text"
                   required
                   placeholder="e.g. Empagliflozin, Semaglutide, Apixaban"
                   value={targetMolecule}
                   onChange={(e) => setTargetMolecule(e.target.value)}
-                  className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3.5 py-2.5 text-sm text-slate-100 placeholder-slate-500 focus:outline-none focus:border-brand-500"
+                  className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-300 dark:border-slate-700 rounded-xl px-3.5 py-2.5 text-sm text-slate-800 dark:text-slate-100 placeholder-slate-500 focus:outline-none focus:border-brand-500"
                 />
               </div>
 
               <div>
-                <label className="block text-slate-300 font-semibold mb-1">Working Brand Name (Optional)</label>
+                <label className="block text-slate-600 dark:text-slate-300 font-semibold mb-1">Working Brand Name (Optional)</label>
                 <input
                   type="text"
                   placeholder="e.g. Cardioflo, Semavive (Leave blank for auto-suggestion)"
                   value={brandName}
                   onChange={(e) => setBrandName(e.target.value)}
-                  className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3.5 py-2.5 text-sm text-slate-100 placeholder-slate-500 focus:outline-none focus:border-brand-500"
+                  className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-300 dark:border-slate-700 rounded-xl px-3.5 py-2.5 text-sm text-slate-800 dark:text-slate-100 placeholder-slate-500 focus:outline-none focus:border-brand-500"
                 />
               </div>
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-slate-300 font-semibold mb-1">Therapy Area</label>
+                  <label className="block text-slate-600 dark:text-slate-300 font-semibold mb-1">Therapy Area</label>
                   <input
                     type="text"
                     value={therapyArea}
                     onChange={(e) => setTherapyArea(e.target.value)}
-                    className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3.5 py-2 text-sm text-slate-100 focus:outline-none focus:border-brand-500"
+                    className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-300 dark:border-slate-700 rounded-xl px-3.5 py-2 text-sm text-slate-800 dark:text-slate-100 focus:outline-none focus:border-brand-500"
                   />
                 </div>
                 <div>
-                  <label className="block text-slate-300 font-semibold mb-1">Target Geography</label>
+                  <label className="block text-slate-600 dark:text-slate-300 font-semibold mb-1">Target Geography</label>
                   <select
                     value={targetGeography}
                     onChange={(e) => setTargetGeography(e.target.value)}
-                    className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3.5 py-2 text-sm text-slate-100 focus:outline-none focus:border-brand-500"
+                    className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-300 dark:border-slate-700 rounded-xl px-3.5 py-2 text-sm text-slate-800 dark:text-slate-100 focus:outline-none focus:border-brand-500"
                   >
                     <option value="Global">Global</option>
                     <option value="United States">United States (FDA)</option>
@@ -321,14 +321,14 @@ export default function HomePage() {
               </div>
 
               <div>
-                <label className="block text-slate-300 font-semibold mb-1">Primary Clinical Indication *</label>
+                <label className="block text-slate-600 dark:text-slate-300 font-semibold mb-1">Primary Clinical Indication *</label>
                 <textarea
                   required
                   rows={2}
                   placeholder="e.g. Heart Failure & Chronic Kidney Disease in Type 2 Diabetes"
                   value={primaryIndication}
                   onChange={(e) => setPrimaryIndication(e.target.value)}
-                  className="w-full bg-slate-950 border border-slate-700 rounded-xl p-3 text-sm text-slate-100 placeholder-slate-500 focus:outline-none focus:border-brand-500"
+                  className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-300 dark:border-slate-700 rounded-xl p-3 text-sm text-slate-800 dark:text-slate-100 placeholder-slate-500 focus:outline-none focus:border-brand-500"
                 ></textarea>
               </div>
 
@@ -336,14 +336,14 @@ export default function HomePage() {
                 <button
                   type="button"
                   onClick={() => setShowCreateModal(false)}
-                  className="px-4 py-2 rounded-xl bg-slate-800 text-slate-300 text-sm font-medium hover:bg-slate-700 transition"
+                  className="px-4 py-2 rounded-xl bg-slate-200 dark:bg-slate-800 text-slate-600 dark:text-slate-300 text-sm font-medium hover:bg-slate-700 transition"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
                   disabled={creating}
-                  className="px-5 py-2 rounded-xl bg-brand-600 hover:bg-brand-500 text-white text-sm font-semibold shadow-lg shadow-brand-500/20 transition disabled:opacity-50"
+                  className="px-5 py-2 rounded-xl bg-brand-600 hover:bg-brand-500 text-slate-900 dark:text-white text-sm font-semibold shadow-lg shadow-brand-500/20 transition disabled:opacity-50"
                 >
                   {creating ? 'Initializing AI Engine...' : 'Launch Brand Workspace'}
                 </button>

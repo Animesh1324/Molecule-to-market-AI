@@ -1,7 +1,7 @@
 import logging
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI, Request, Response
+from fastapi import Depends, FastAPI, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
@@ -16,11 +16,19 @@ from .api import (
     projects,
     regulatory,
     reports,
+    uploads,
     trademark,
     trials,
 )
 from .config import get_settings
 from .db.database import init_db, db_healthy
+from .security import (
+    RateLimitMiddleware,
+    SecurityHeadersMiddleware,
+    auth_required,
+    enforce_startup_policy,
+    require_access,
+)
 from .services.claude_client import is_configured as ai_configured
 
 logging.basicConfig(
@@ -33,6 +41,7 @@ settings = get_settings()
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    enforce_startup_policy()
     init_db()
     if settings["app_env"] == "production" and not settings["cors_origins_configured"]:
         logger.warning(
@@ -49,6 +58,9 @@ app = FastAPI(
     version="1.0.0",
     lifespan=lifespan,
 )
+
+app.add_middleware(RateLimitMiddleware)
+app.add_middleware(SecurityHeadersMiddleware)
 
 app.add_middleware(
     CORSMiddleware,
@@ -75,18 +87,19 @@ async def unhandled_exception_handler(request: Request, exc: Exception):
     )
 
 
-app.include_router(projects.router)
-app.include_router(molecules.router)
-app.include_router(evidence.router)
-app.include_router(trials.router)
-app.include_router(regulatory.router)
-app.include_router(trademark.router)
-app.include_router(competitors.router)
-app.include_router(forecasting.router)
-app.include_router(brand_plan.router)
-app.include_router(creative_assets.router)
-app.include_router(reports.router)
-app.include_router(lifecycle.router)
+app.include_router(projects.router, dependencies=[Depends(require_access)])
+app.include_router(molecules.router, dependencies=[Depends(require_access)])
+app.include_router(evidence.router, dependencies=[Depends(require_access)])
+app.include_router(trials.router, dependencies=[Depends(require_access)])
+app.include_router(regulatory.router, dependencies=[Depends(require_access)])
+app.include_router(trademark.router, dependencies=[Depends(require_access)])
+app.include_router(competitors.router, dependencies=[Depends(require_access)])
+app.include_router(forecasting.router, dependencies=[Depends(require_access)])
+app.include_router(brand_plan.router, dependencies=[Depends(require_access)])
+app.include_router(creative_assets.router, dependencies=[Depends(require_access)])
+app.include_router(reports.router, dependencies=[Depends(require_access)])
+app.include_router(lifecycle.router, dependencies=[Depends(require_access)])
+app.include_router(uploads.router, dependencies=[Depends(require_access)])
 
 
 @app.get("/")
@@ -98,6 +111,7 @@ async def root():
         "modules_active": 11,
         "compliance_mode": "FDA OPDP / CDSCO UCPMP / EMA Fair Balance Active",
         "environment": settings["app_env"],
+        "authentication": "required" if auth_required() else "open (no API_ACCESS_TOKEN set)",
         "ai_drafting": {
             "enabled": ai_configured(),
             "model": settings["claude_model"] if ai_configured() else None,

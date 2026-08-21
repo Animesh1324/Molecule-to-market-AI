@@ -381,3 +381,65 @@ export interface MLRAuditEntry {
   status: string;
   auditor: string;
 }
+
+// --- Patent, exclusivity & competitive entry (FDA Orange Book) ---------------
+
+export interface PatentRecord {
+  patent_number: string;
+  expiry_date: string;
+  submission_date?: string | null;
+  drug_substance: boolean;
+  drug_product: boolean;
+  use_code?: string | null;
+}
+
+export interface ExclusivityRecord {
+  code: string;
+  expiry_date: string;
+  description?: string | null;
+}
+
+export interface MarketedProduct {
+  trade_name: string;
+  applicant: string;
+  applicant_full_name?: string | null;
+  strength?: string | null;
+  dosage_form_route?: string | null;
+  application_type: string;
+  application_number: string;
+  approval_date?: string | null;
+  is_reference_listed_drug: boolean;
+  therapeutic_equivalence_code?: string | null;
+}
+
+export interface MoleculeLifecycle {
+  query: string;
+  display_name: string;
+  components: string[];
+  is_combination: boolean;
+  innovator_company?: string | null;
+  innovator_brand?: string | null;
+  innovator_application?: string | null;
+  first_approval_date?: string | null;
+  patents: PatentRecord[];
+  latest_patent_expiry?: string | null;
+  exclusivity: ExclusivityRecord[];
+  generic_entrants: MarketedProduct[];
+  generic_entrant_count: number;
+  first_generic_approval_date?: string | null;
+  all_products: MarketedProduct[];
+  data_sources: string[];
+  coverage_note: string;
+  unavailable: string[];
+}
+
+export interface UploadedFile {
+  id: string;
+  project_id: string;
+  original_filename: string;
+  stored_filename: string;
+  size_bytes: number;
+  content_type?: string | null;
+  uploaded_at: string;
+  note?: string | null;
+}

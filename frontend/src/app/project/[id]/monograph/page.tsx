@@ -87,7 +87,7 @@ export default function MonographPrintPage() {
 
   if (loading || !project || !molecule) {
     return (
-      <div className="min-h-screen bg-slate-950 flex items-center justify-center text-slate-400 font-mono text-sm">
+      <div className="min-h-screen bg-slate-50 dark:bg-slate-950 flex items-center justify-center text-slate-500 dark:text-slate-500 dark:text-slate-400 font-mono text-sm">
         Compiling print-ready scientific monograph...
       </div>
     );
@@ -96,22 +96,22 @@ export default function MonographPrintPage() {
   const brandDisplayName = project.brand_working_name || `${project.target_molecule_name} Brand`;
 
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-900 print:bg-white print:text-black">
+    <div className="min-h-screen bg-slate-50 dark:bg-slate-950 text-slate-900 print:bg-white print:text-black">
       {/* Top Action Bar (Hidden in Print) */}
-      <header className="print:hidden bg-slate-900 border-b border-slate-800 p-4 sticky top-0 z-50">
+      <header className="print:hidden bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 p-4 sticky top-0 z-50">
         <div className="max-w-5xl mx-auto flex items-center justify-between">
           <Link
             href={`/project/${project.id}`}
-            className="flex items-center space-x-2 text-xs font-semibold text-slate-300 hover:text-white transition"
+            className="flex items-center space-x-2 text-xs font-semibold text-slate-600 dark:text-slate-300 hover:text-white transition"
           >
             <ArrowLeft className="w-4 h-4" />
             <span>Back to Workspace</span>
           </Link>
           <div className="flex items-center space-x-3">
-            <span className="text-xs text-slate-400 font-mono">Print-Ready Monograph & Dossier</span>
+            <span className="text-xs text-slate-500 dark:text-slate-500 dark:text-slate-400 font-mono">Print-Ready Monograph & Dossier</span>
             <button
               onClick={handlePrint}
-              className="flex items-center space-x-1.5 px-4 py-2 rounded-xl bg-brand-600 hover:bg-brand-500 text-white text-xs font-semibold shadow-md transition"
+              className="flex items-center space-x-1.5 px-4 py-2 rounded-xl bg-brand-600 hover:bg-brand-500 text-slate-900 dark:text-white text-xs font-semibold shadow-md transition"
             >
               <Printer className="w-4 h-4" />
               <span>Print / Save as PDF</span>
@@ -124,7 +124,7 @@ export default function MonographPrintPage() {
       <main className="max-w-4xl mx-auto my-8 p-10 bg-white shadow-2xl rounded-2xl print:shadow-none print:m-0 print:p-6 print:rounded-none print:max-w-none space-y-8 font-sans">
         {/* Document Header & Title */}
         <div className="border-b-2 border-slate-900 pb-6 space-y-2 text-center">
-          <div className="text-[11px] font-mono uppercase tracking-widest text-slate-500 font-bold">
+          <div className="text-[11px] font-mono uppercase tracking-widest text-slate-500 dark:text-slate-500 font-bold">
             Pharmaceutical Product Monograph & Scientific Brand Dossier
           </div>
           <h1 className="text-3xl md:text-4xl font-extrabold text-slate-950 uppercase tracking-tight">
@@ -133,7 +133,7 @@ export default function MonographPrintPage() {
           <div className="text-sm font-semibold text-slate-700 font-mono">
             Active Substance: {molecule.generic_name} ({molecule.pharmacological_class})
           </div>
-          <div className="text-xs text-slate-500 pt-1">
+          <div className="text-xs text-slate-500 dark:text-slate-500 pt-1">
             Indication: {project.primary_indication} | Therapy Area: {project.therapy_area} | Market: {project.target_geography}
           </div>
           <div className="inline-block px-3 py-1 bg-emerald-50 text-emerald-800 text-[10px] font-mono font-bold rounded border border-emerald-300 mt-2">
@@ -286,7 +286,7 @@ export default function MonographPrintPage() {
         )}
 
         {/* Document Footer & Fair Balance Compliance */}
-        <footer className="pt-6 border-t-2 border-slate-900 text-[10px] text-slate-500 space-y-1">
+        <footer className="pt-6 border-t-2 border-slate-900 text-[10px] text-slate-500 dark:text-slate-500 space-y-1">
           <div>
             <strong>Compliance & Governance Notice:</strong> This monograph is compiled for internal medical marketing and strategic launch preparation. All claims are grounded in peer-reviewed scientific literature and approved regulatory labels.
           </div>

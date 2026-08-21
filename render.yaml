@@ -28,6 +28,9 @@ services:
         value: "3.12.6"
       # Optional: enables Claude drafting of the strategy narrative.
       # Without it the backend serves the deterministic template.
+      # Required: the backend refuses to start in production without it.
+      - key: API_ACCESS_TOKEN
+        generateValue: true
       - key: ANTHROPIC_API_KEY
         sync: false
       - key: CLAUDE_MODEL
