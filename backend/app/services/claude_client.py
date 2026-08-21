@@ -49,6 +49,21 @@ def _effort() -> str:
     return configured
 
 
+def _api_message(exc: "anthropic.APIStatusError") -> str:
+    """Pull the human-readable reason out of an API error.
+
+    `exc.message` carries the whole serialized error envelope, which reads as
+    raw JSON when it lands in a review flag in the UI. The nested `message` is
+    the part a user can act on ("Your credit balance is too low...").
+    """
+    body = getattr(exc, "body", None)
+    if isinstance(body, dict):
+        error = body.get("error")
+        if isinstance(error, dict) and isinstance(error.get("message"), str):
+            return error["message"]
+    return str(getattr(exc, "message", exc))
+
+
 async def generate_json(
     *,
     system: str,
@@ -89,7 +104,7 @@ async def generate_json(
     except anthropic.APIConnectionError as exc:
         raise ClaudeUnavailable(f"Could not reach the Anthropic API: {exc}") from exc
     except anthropic.APIStatusError as exc:
-        raise ClaudeUnavailable(f"Anthropic API error {exc.status_code}: {exc.message}") from exc
+        raise ClaudeUnavailable(f"Anthropic API error {exc.status_code}: {_api_message(exc)}") from exc
 
     # Check the stop reason before touching content: a refusal returns HTTP 200
     # with empty or partial content, so indexing content[0] would raise.
