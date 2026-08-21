@@ -99,7 +99,7 @@ export default function HomePage() {
           </div>
 
           <h1 className="text-4xl md:text-5xl lg:text-6xl font-extrabold text-slate-900 dark:text-white tracking-tight leading-tight max-w-4xl mx-auto">
-            From <span className="bg-gradient-to-r from-teal-400 via-brand-400 to-indigo-400 bg-clip-text text-transparent">Molecule Discovery</span> to Market-Dominating <span className="underline decoration-brand-500 underline-offset-8">Brand Plan</span>
+            From <span className="bg-gradient-to-r from-brand-500 via-brand-400 to-brand-300 bg-clip-text text-transparent">Molecule Discovery</span> to Market-Dominating <span className="underline decoration-brand-500 underline-offset-8">Brand Plan</span>
           </h1>
 
           <p className="text-base md:text-lg text-slate-500 dark:text-slate-500 dark:text-slate-400 max-w-2xl mx-auto leading-relaxed">
@@ -220,7 +220,7 @@ export default function HomePage() {
         {/* The 10 Modules Feature Overview */}
         <div className="pt-8 border-t border-slate-200 dark:border-slate-800/80 space-y-6">
           <div className="text-center space-y-2">
-            <h2 className="text-2xl font-bold text-slate-800 dark:text-slate-100">10 Integrated Commercialization Modules</h2>
+            <h2 className="text-2xl font-bold text-slate-800 dark:text-slate-100">15 Integrated Commercialization Modules</h2>
             <p className="text-xs text-slate-500 dark:text-slate-500 dark:text-slate-400 max-w-xl mx-auto">
               Everything required to take a compound from pharmacological validation to final field force execution
             </p>

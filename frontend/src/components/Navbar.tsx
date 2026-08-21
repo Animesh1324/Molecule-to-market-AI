@@ -21,7 +21,7 @@ export default function Navbar({ currentProjectId, projectTitle, moleculeName }:
               <Activity className="w-5 h-5 text-slate-900 dark:text-white" />
             </div>
             <div>
-              <span className="font-bold text-lg tracking-tight bg-gradient-to-r from-white via-slate-200 to-brand-300 bg-clip-text text-transparent">
+              <span className="font-display text-lg tracking-tight text-navy-900 dark:text-white">
                 Pharma BrandPlan AI
               </span>
               <span className="block text-[10px] text-teal-700 dark:text-teal-400 font-mono tracking-wider uppercase font-semibold">

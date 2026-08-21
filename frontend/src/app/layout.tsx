@@ -31,9 +31,17 @@ export default function RootLayout({
   return (
     <html lang="en" className="dark" suppressHydrationWarning>
       <head>
+        {/* Same families as animesh-portfolio: Inter for body, DM Serif
+            Display for headings. Preconnect so the serif is not a late swap. */}
+        <link rel="preconnect" href="https://fonts.googleapis.com" />
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
+        <link
+          href="https://fonts.googleapis.com/css2?family=DM+Serif+Display&family=Playfair+Display:ital,wght@0,600;0,700;1,600&family=Inter:wght@300;400;500;600;700&display=swap"
+          rel="stylesheet"
+        />
         <script dangerouslySetInnerHTML={{ __html: THEME_BOOTSTRAP }} />
       </head>
-      <body className="bg-slate-50 dark:bg-slate-950 text-slate-800 dark:text-slate-100 min-h-screen flex flex-col font-sans transition-colors">
+      <body className="bg-white dark:bg-navy-950 text-navy-900 dark:text-navy-100 min-h-screen flex flex-col font-sans transition-colors">
         <ThemeProvider>
           <MLRComplianceBanner />
           <main className="flex-1 flex flex-col">{children}</main>

@@ -2,24 +2,90 @@
 @tailwind components;
 @tailwind utilities;
 
+/*
+ * Palette carried over from animesh-portfolio: navy + gold on warm neutrals.
+ * Tailwind's slate/brand scales are remapped to those tokens in the config, so
+ * the variables here exist for the handful of places that need raw CSS
+ * (scrollbars, selection, gradients) rather than a utility class.
+ */
+:root {
+  --c-navy: #1B2F4E;
+  --c-navy-2: #243d63;
+  --c-navy-3: #2d5080;
+  --c-gold: #B8962E;
+  --c-gold-2: #d4ae45;
+  --c-gold-pale: rgba(184, 150, 46, 0.12);
+  --c-off: #F7F8FA;
+  --c-light: #EDF0F5;
+  --c-border: #E4E8EF;
+  --c-text: #1a2332;
+  --c-mid: #4a5568;
+  --c-muted: #8898aa;
+
+  --surface: #ffffff;
+  --surface-sunken: var(--c-off);
+  --rule: var(--c-border);
+  --ink: var(--c-text);
+  --ease: cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+/* The dark kit keeps the same navy/gold identity rather than switching to a
+   neutral grey, so the two themes read as one brand. */
+.dark {
+  --surface: #1B2F4E;
+  --surface-sunken: #14243c;
+  --rule: rgba(255, 255, 255, 0.08);
+  --ink: #EDF0F5;
+}
+
 @layer base {
   body {
-    @apply bg-slate-950 text-slate-100 antialiased selection:bg-brand-500 selection:text-white;
+    @apply bg-white dark:bg-navy-950 text-navy-900 dark:text-navy-100 antialiased
+           selection:bg-brand-500 selection:text-white;
+    font-family: 'Inter', system-ui, -apple-system, sans-serif;
+  }
+
+  /* Editorial serif for headings, as in the portfolio. */
+  h1, h2, h3 {
+    font-family: 'DM Serif Display', 'Playfair Display', Georgia, serif;
+    letter-spacing: -0.01em;
+  }
+
+  a:focus-visible,
+  button:focus-visible,
+  input:focus-visible,
+  textarea:focus-visible,
+  select:focus-visible {
+    outline: 2px solid var(--c-gold);
+    outline-offset: 3px;
   }
 }
 
-/* Custom modern scrollbars */
+/* Scrollbars follow the active surface instead of a hardcoded dark slate. */
 ::-webkit-scrollbar {
   width: 6px;
   height: 6px;
 }
 ::-webkit-scrollbar-track {
-  background: #0f172a;
+  background: var(--surface-sunken);
 }
 ::-webkit-scrollbar-thumb {
-  background: #334155;
+  background: var(--c-muted);
   border-radius: 3px;
 }
 ::-webkit-scrollbar-thumb:hover {
-  background: #475569;
+  background: var(--c-navy-3);
+}
+
+/* Subtle grid wash behind hero sections, matching the portfolio's texture. */
+.grid-bg {
+  background-image:
+    linear-gradient(rgba(27, 47, 78, 0.03) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(27, 47, 78, 0.03) 1px, transparent 1px);
+  background-size: 30px 30px;
+}
+.dark .grid-bg {
+  background-image:
+    linear-gradient(rgba(255, 255, 255, 0.03) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.03) 1px, transparent 1px);
 }
