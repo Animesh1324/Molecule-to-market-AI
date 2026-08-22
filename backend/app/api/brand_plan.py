@@ -10,6 +10,7 @@ from ..services.claude_client import is_configured as ai_configured
 from ..services.pubchem_service import fetch_molecule_intelligence
 from ..services.pubmed_service import search_pubmed_evidence
 from ..services.competitor_service import generate_competitor_intelligence
+from ..services.regulatory_service import fetch_regulatory_intelligence
 from ..db import database as db
 
 logger = logging.getLogger(__name__)
@@ -21,14 +22,17 @@ async def _grounding_for(molecule: str, indication: str):
     """Fetch the verified facts the drafting model is allowed to build on.
 
     Best-effort: drafting proceeds with whatever context is available, since a
-    PubChem or PubMed outage should degrade the draft, not fail the request.
+    PubChem, PubMed, or regulatory outage should degrade the draft, not fail
+    the request.
     """
     molecule_profile: Optional[Dict[str, Any]] = None
     evidence: List[Dict[str, Any]] = []
+    regulatory: Optional[Dict[str, Any]] = None
 
-    profile_result, evidence_result = await asyncio.gather(
+    profile_result, evidence_result, regulatory_result = await asyncio.gather(
         fetch_molecule_intelligence(molecule),
         search_pubmed_evidence(molecule, indication),
+        fetch_regulatory_intelligence(molecule),
         return_exceptions=True,
     )
 
@@ -46,7 +50,14 @@ async def _grounding_for(molecule: str, indication: str):
             p.model_dump() if hasattr(p, "model_dump") else p.dict() for p in evidence_result
         ]
 
-    return molecule_profile, evidence
+    if isinstance(regulatory_result, Exception):
+        logger.warning("Regulatory grounding unavailable for %s: %s", molecule, regulatory_result)
+    elif regulatory_result is not None:
+        regulatory = (
+            regulatory_result.model_dump() if hasattr(regulatory_result, "model_dump") else regulatory_result.dict()
+        )
+
+    return molecule_profile, evidence, regulatory
 
 
 def _matches_request(stored: Dict[str, Any], molecule: str, brand_name: Optional[str], therapy_area: str, indication: str, target_geography: str) -> bool:
@@ -119,9 +130,13 @@ async def get_or_generate_brand_plan(
     )
 
     if ai and ai_configured():
-        molecule_profile, evidence = await _grounding_for(molecule, indication)
+        molecule_profile, evidence, regulatory = await _grounding_for(molecule, indication)
         plan = await ai_drafting.draft_brand_plan(
-            plan, molecule=molecule_profile, evidence=evidence, competitors=competitor_data
+            plan,
+            molecule=molecule_profile,
+            evidence=evidence,
+            competitors=competitor_data,
+            regulatory=regulatory,
         )
 
     # persist serialized plan

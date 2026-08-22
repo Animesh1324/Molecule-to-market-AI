@@ -114,6 +114,7 @@ def _format_grounding(
     molecule: Optional[Dict[str, Any]],
     evidence: Optional[List[Dict[str, Any]]],
     competitors: Optional[Dict[str, Any]] = None,
+    regulatory: Optional[Dict[str, Any]] = None,
 ) -> str:
     """Render only verified, app-fetched facts into the prompt."""
     lines = [
@@ -157,6 +158,45 @@ def _format_grounding(
     else:
         lines += ["", "## Evidence on file", "- None supplied. Treat the evidence base as an open gap."]
 
+    if regulatory:
+        lines += ["", "## Verified regulatory status (from openFDA / national labels — cite, do not extrapolate)"]
+        for agency_key, agency_label in (
+            ("us_fda", "US FDA"),
+            ("india_cdsco", "India CDSCO"),
+            ("eu_ema", "EU EMA"),
+        ):
+            agency = regulatory.get(agency_key) or {}
+            status = agency.get("status")
+            if not status or status == "Investigational":
+                continue
+            detail = f"- {agency_label}: {status}"
+            if agency.get("approval_year"):
+                detail += f", approved {agency['approval_year']}"
+            if agency.get("innovator_brand_name"):
+                detail += f", innovator brand {agency['innovator_brand_name']}"
+            app_count = len(agency.get("application_numbers") or [])
+            if app_count:
+                detail += f", {app_count} application(s) on file"
+            boxed_count = len(agency.get("boxed_warnings") or [])
+            if boxed_count:
+                detail += f", label carries {boxed_count} boxed warning(s)"
+            lines.append(detail)
+            indications = agency.get("approved_indications") or []
+            if indications:
+                lines.append(f"  Approved indications: {'; '.join(str(i) for i in indications[:4])}")
+        if regulatory.get("generic_vs_innovator_status"):
+            lines.append(f"- Market status: {regulatory['generic_vs_innovator_status']}")
+        if regulatory.get("patent_expiry_timeline"):
+            lines.append(f"- Patent/exclusivity timeline: {regulatory['patent_expiry_timeline']}")
+        lines.append(
+            "Use these as the factual regulatory backdrop for launch sequencing and "
+            "lifecycle strategy. Do not restate boxed warning text or assert safety "
+            "beyond noting that warnings exist."
+        )
+    else:
+        lines += ["", "## Verified regulatory status",
+                  "- None supplied. Treat approval status and exclusivity timing as an open gap."]
+
     competitor_rows = (competitors or {}).get("competitors") or []
     if competitor_rows:
         summary = (competitors or {}).get("market_summary") or {}
@@ -178,6 +218,18 @@ def _format_grounding(
     else:
         lines += ["", "## Competitors on file",
                   "- None supplied. Do not name any competitor by name or invent a market share."]
+
+    swot = (competitors or {}).get("swot_analysis") or {}
+    if any(swot.get(k) for k in ("strengths", "weaknesses", "opportunities", "threats")):
+        lines += ["", "## SWOT on file (analyst-curated — cite, do not extend beyond these points)"]
+        for label, key in (
+            ("Strengths", "strengths"),
+            ("Weaknesses", "weaknesses"),
+            ("Opportunities", "opportunities"),
+            ("Threats", "threats"),
+        ):
+            for point in (swot.get(key) or [])[:4]:
+                lines.append(f"- [{label}] {point}")
 
     lines += ["", "## Sections to draft"]
     for section in plan.sections:
@@ -239,6 +291,7 @@ async def draft_brand_plan(
     molecule: Optional[Dict[str, Any]] = None,
     evidence: Optional[List[Dict[str, Any]]] = None,
     competitors: Optional[Dict[str, Any]] = None,
+    regulatory: Optional[Dict[str, Any]] = None,
 ) -> CompleteBrandPlan:
     """Return `plan` with its narrative sections drafted by Claude.
 
@@ -252,7 +305,7 @@ async def draft_brand_plan(
         return CompleteBrandPlan(**plan_data)
 
     prompt = (
-        f"{_format_grounding(plan, molecule, evidence, competitors)}\n\n"
+        f"{_format_grounding(plan, molecule, evidence, competitors, regulatory)}\n\n"
         "Draft the strategy narrative for this brand plan. Return one entry in "
         "`sections` for every section listed above, keyed by its section_id. "
         "Follow every rule in your instructions — this draft goes to MLR review, "

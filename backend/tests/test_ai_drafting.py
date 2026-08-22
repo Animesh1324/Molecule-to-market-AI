@@ -127,6 +127,82 @@ def test_drafting_never_sets_mlr_signoff(monkeypatch):
     assert any("Open question" in f for f in result.ai_review_flags)
 
 
+# --- regulatory grounding ----------------------------------------------------
+
+def test_grounding_renders_regulatory_status_when_supplied():
+    """The regulatory dossier must reach the drafting prompt, not just PubChem/PubMed."""
+    regulatory = {
+        "us_fda": {
+            "status": "Approved",
+            "approval_year": 2014,
+            "innovator_brand_name": "Jardiance",
+            "application_numbers": ["NDA204629"],
+            "boxed_warnings": [],
+            "approved_indications": ["Type 2 diabetes mellitus"],
+        },
+        "india_cdsco": {"status": "Approved", "approval_year": 2015},
+        "eu_ema": {"status": "Investigational"},
+        "generic_vs_innovator_status": "Innovator Exclusivity",
+        "patent_expiry_timeline": "Composition-of-matter patent expires 2028",
+    }
+    prompt = ai_drafting._format_grounding(_plan(), None, None, None, regulatory)
+
+    assert "Verified regulatory status" in prompt
+    assert "US FDA: Approved, approved 2014, innovator brand Jardiance" in prompt
+    assert "1 application(s) on file" in prompt
+    assert "India CDSCO: Approved, approved 2015" in prompt
+    assert "EU EMA" not in prompt  # Investigational status is skipped as uninformative
+    assert "Innovator Exclusivity" in prompt
+    assert "Composition-of-matter patent expires 2028" in prompt
+
+
+def test_grounding_flags_missing_regulatory_data_as_a_gap():
+    prompt = ai_drafting._format_grounding(_plan(), None, None, None, None)
+    assert "Treat approval status and exclusivity timing as an open gap." in prompt
+
+
+def test_draft_brand_plan_forwards_regulatory_into_the_prompt(monkeypatch):
+    """draft_brand_plan must thread its `regulatory` argument into the prompt sent to Claude."""
+    captured = {}
+
+    async def fake_generate_json(**kwargs):
+        captured["prompt"] = kwargs["prompt"]
+        return {
+            **{f: "Sequence the launch activities by quarter." for f in ai_drafting._NARRATIVE_FIELDS},
+            "sections": [],
+            "open_questions": [],
+        }
+
+    monkeypatch.setattr(ai_drafting, "is_configured", lambda: True)
+    monkeypatch.setattr(ai_drafting, "generate_json", fake_generate_json)
+    monkeypatch.setattr(ai_drafting, "get_settings", lambda: {"claude_model": "test-model"})
+
+    regulatory = {"us_fda": {"status": "Approved", "approval_year": 2014}}
+    _run(ai_drafting.draft_brand_plan(_plan(), regulatory=regulatory))
+
+    assert "US FDA: Approved, approved 2014" in captured["prompt"]
+
+
+def test_grounding_renders_curated_swot_when_supplied():
+    competitors = {
+        "swot_analysis": {
+            "strengths": ["Landmark outcomes trial demonstrating mortality benefit."],
+            "weaknesses": ["Requires patient counseling on a known class side effect."],
+            "opportunities": ["Guideline endorsement expanding first-line use."],
+            "threats": ["A faster-growing competitor class capturing specialist share."],
+        }
+    }
+    prompt = ai_drafting._format_grounding(_plan(), None, None, competitors, None)
+    assert "SWOT on file" in prompt
+    assert "[Strengths] Landmark outcomes trial demonstrating mortality benefit." in prompt
+    assert "[Threats] A faster-growing competitor class capturing specialist share." in prompt
+
+
+def test_grounding_omits_swot_section_when_all_empty():
+    prompt = ai_drafting._format_grounding(_plan(), None, None, {"swot_analysis": {}}, None)
+    assert "SWOT on file" not in prompt
+
+
 def test_schema_is_valid_for_structured_outputs():
     """Structured outputs require closed objects with every property required."""
     schema = ai_drafting._plan_schema()

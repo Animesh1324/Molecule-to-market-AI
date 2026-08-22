@@ -10,6 +10,7 @@ import {
   MarketForecast,
   CompleteBrandPlan,
   CreativeCommercialAssets,
+  VisualAidBrief,
   MLRAuditEntry,
   MoleculeLifecycle,
   UploadedFile,
@@ -137,8 +138,17 @@ export async function fetchRegulatoryLabels(molecule: string): Promise<Regulator
   return res.json();
 }
 
-export async function fetchTrademarkAnalysis(molecule: string, therapyArea: string = 'Cardiometabolic'): Promise<TrademarkIntelligence> {
-  const res = await fetch(`${API_BASE}/api/trademark/analyze?molecule=${encodeURIComponent(molecule)}&therapy_area=${encodeURIComponent(therapyArea)}`, { headers: authHeaders() });
+export async function fetchTrademarkAnalysis(
+  molecule: string,
+  therapyArea: string = 'Cardiometabolic',
+  options?: { indication?: string; requirement?: string; count?: number; exclude?: string[] }
+): Promise<TrademarkIntelligence> {
+  const params = new URLSearchParams({ molecule, therapy_area: therapyArea });
+  if (options?.indication) params.set('indication', options.indication);
+  if (options?.requirement) params.set('requirement', options.requirement);
+  if (options?.count) params.set('count', String(options.count));
+  if (options?.exclude?.length) params.set('exclude', options.exclude.join(','));
+  const res = await fetch(`${API_BASE}/api/trademark/analyze?${params.toString()}`, { headers: authHeaders() });
   if (!res.ok) throw await apiError(res, 'Failed to fetch trademark analysis');
   return res.json();
 }
@@ -213,29 +223,64 @@ export async function fetchCreativeAssets(molecule: string, brand_name?: string,
   return res.json();
 }
 
+export async function fetchVisualAidBrief(molecule: string, brand_name?: string, indication?: string): Promise<VisualAidBrief> {
+  const q = new URLSearchParams({ molecule });
+  if (brand_name) q.append('brand_name', brand_name);
+  if (indication) q.append('indication', indication);
+
+  const res = await fetch(`${API_BASE}/api/assets/visual-aid-brief?${q.toString()}`, { headers: authHeaders() });
+  if (!res.ok) throw await apiError(res, 'Failed to draft the visual aid brief');
+  return res.json();
+}
+
 export async function fetchAuditTrail(): Promise<MLRAuditEntry[]> {
   const res = await fetch(`${API_BASE}/api/reports/audit-trail`, { headers: authHeaders() });
   if (!res.ok) throw await apiError(res, 'Failed to fetch MLR audit trail');
   return res.json();
 }
 
-export function getExportDocxUrl(molecule: string, brand_name: string, therapy_area?: string, indication?: string): string {
+export function getExportDocxUrl(molecule: string, brand_name: string, therapy_area?: string, indication?: string, projectId?: string): string {
   const q = new URLSearchParams({
     molecule,
     brand_name,
     therapy_area: therapy_area || 'Cardiometabolic',
     indication: indication || 'Heart Failure & CKD in T2D'
   });
+  if (projectId) q.set('project_id', projectId);
   return `${API_BASE}/api/reports/export/docx?${q.toString()}`;
 }
 
-export function getExportPptxUrl(molecule: string, brand_name: string, therapy_area?: string, indication?: string): string {
+export interface PptxExportForecastState {
+  prevalence_rate?: number;
+  diagnosed_rate?: number;
+  treated_rate?: number;
+  brand_adoption_rate_y1?: number;
+  annual_cost_per_patient_usd?: number;
+  mrp_per_patient_year_inr?: number;
+  ptr_per_patient_year_inr?: number;
+  pts_per_patient_year_inr?: number;
+}
+
+export function getExportPptxUrl(
+  molecule: string,
+  brand_name: string,
+  therapy_area?: string,
+  indication?: string,
+  projectId?: string,
+  forecastState?: PptxExportForecastState,
+): string {
   const q = new URLSearchParams({
     molecule,
     brand_name,
     therapy_area: therapy_area || 'Cardiometabolic',
     indication: indication || 'Heart Failure & CKD in T2D'
   });
+  if (projectId) q.set('project_id', projectId);
+  if (forecastState) {
+    for (const [key, value] of Object.entries(forecastState)) {
+      if (value !== undefined && value !== null) q.set(key, String(value));
+    }
+  }
   return `${API_BASE}/api/reports/export/pptx?${q.toString()}`;
 }
 
@@ -436,7 +481,8 @@ export async function fetchBrandNameCandidates(
   molecule: string,
   therapyArea = '',
   indication = '',
-  count = 10
+  count = 10,
+  requirement = ''
 ): Promise<BrandNameCandidates> {
   const q = new URLSearchParams({
     molecule,
@@ -444,6 +490,7 @@ export async function fetchBrandNameCandidates(
     indication,
     count: String(count),
   });
+  if (requirement) q.set('requirement', requirement);
   const res = await fetch(`${API_BASE}/api/intelligence/brand-names?${q}`, {
     headers: authHeaders(),
   });

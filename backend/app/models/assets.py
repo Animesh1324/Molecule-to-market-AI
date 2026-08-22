@@ -36,6 +36,29 @@ class PatientEducationLeaflet(BaseModel):
     what_to_expect_and_side_effects: str
     lifestyle_and_diet_tips: List[str] = []
 
+class VisualAidBrief(BaseModel):
+    """The 8-element allopathic detail-aid anatomy: main indication, brand/pack,
+    punchline, clinical message, hero visual, composition, scientific support,
+    call-to-prescribe — plus a ready-to-paste image-generation prompt.
+
+    An internal working draft, same as the rest of the commercial assets: MLR
+    must clear it before any external or field use.
+    """
+    molecule_name: str
+    brand_name: str
+    main_indication: str
+    brand_and_pack_shot: str
+    punchline: str
+    clinical_message_points: List[str] = []
+    hero_visual_concept: str
+    composition: str
+    scientific_support: List[str] = []
+    call_to_prescribe: str
+    image_generation_prompt: str
+    ai_drafted: bool = False
+    ai_review_flags: List[str] = []
+
+
 class CreativeCommercialAssets(BaseModel):
     molecule_name: str
     brand_name: str

@@ -7,7 +7,7 @@ from pptx.util import Inches as PptxInches, Pt as PptxPt
 from pptx.dml.color import RGBColor as PptxRGBColor
 import openpyxl
 from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
-from typing import Dict, Any, Optional
+from typing import Dict, Any, List, Optional
 from ..models.brand_plan import CompleteBrandPlan
 from ..models.assets import CreativeCommercialAssets
 from ..models.forecast import MarketForecast
@@ -111,8 +111,23 @@ def generate_brand_plan_docx(plan: CompleteBrandPlan, molecule: Optional[Molecul
     buffer.seek(0)
     return buffer
 
-def generate_pitch_deck_pptx(plan: CompleteBrandPlan, assets: CreativeCommercialAssets) -> io.BytesIO:
-    """Generates an executive 10-slide PowerPoint Pitch Deck (.pptx)."""
+def generate_pitch_deck_pptx(
+    plan: CompleteBrandPlan,
+    assets: CreativeCommercialAssets,
+    *,
+    competitor_data: Optional[Dict[str, Any]] = None,
+    regulatory: Optional[Dict[str, Any]] = None,
+    molecule: Optional[Dict[str, Any]] = None,
+    forecast: Optional[MarketForecast] = None,
+) -> io.BytesIO:
+    """Generates an executive PowerPoint pitch deck (.pptx), data-dense where real data exists.
+
+    Every table and stat tile is built from the plan's own saved fields plus
+    whatever grounding was passed in (competitor intelligence, regulatory
+    status, molecule profile, market forecast) — never invented for this
+    export. A section whose underlying data is missing says so explicitly
+    rather than being padded with placeholder rows to look complete.
+    """
     prs = Presentation()
     prs.slide_width = PptxInches(13.333) # 16:9 widescreen
     prs.slide_height = PptxInches(7.5)
@@ -171,7 +186,102 @@ def generate_pitch_deck_pptx(plan: CompleteBrandPlan, assets: CreativeCommercial
         
         add_mlr_footer(slide)
         return slide
-    
+
+    def add_table_slide(title_text: str, subtitle_text: str, headers: List[str], rows: List[List[str]], empty_note: str = "No data on file yet."):
+        """A slide whose body is a table — used for anything measured (competitors,
+        regulatory status, KPIs, milestones) rather than narrative bullets.
+        """
+        slide = prs.slides.add_slide(blank_layout)
+
+        header_box = slide.shapes.add_textbox(PptxInches(0.6), PptxInches(0.5), PptxInches(12.1), PptxInches(1.0))
+        tf = header_box.text_frame
+        tf.word_wrap = True
+        p_title = tf.paragraphs[0]
+        p_title.text = title_text
+        p_title.font.size = PptxPt(26)
+        p_title.font.bold = True
+        p_title.font.color.rgb = PptxRGBColor(15, 76, 129)
+        p_sub = tf.add_paragraph()
+        p_sub.text = subtitle_text
+        p_sub.font.size = PptxPt(13)
+        p_sub.font.color.rgb = PptxRGBColor(100, 110, 120)
+
+        if not rows:
+            note_box = slide.shapes.add_textbox(PptxInches(0.6), PptxInches(2.0), PptxInches(12.1), PptxInches(1.0))
+            note_p = note_box.text_frame.paragraphs[0]
+            note_p.text = empty_note
+            note_p.font.size = PptxPt(16)
+            note_p.font.italic = True
+            note_p.font.color.rgb = PptxRGBColor(100, 110, 120)
+            add_mlr_footer(slide)
+            return slide
+
+        n_rows, n_cols = len(rows) + 1, len(headers)
+        table_shape = slide.shapes.add_table(
+            n_rows, n_cols, PptxInches(0.6), PptxInches(1.7), PptxInches(12.1), PptxInches(min(5.0, 0.4 * n_rows)),
+        )
+        table = table_shape.table
+        for col_idx, header in enumerate(headers):
+            cell = table.cell(0, col_idx)
+            cell.text = header
+            cell.text_frame.paragraphs[0].font.bold = True
+            cell.text_frame.paragraphs[0].font.size = PptxPt(12)
+            cell.text_frame.paragraphs[0].font.color.rgb = PptxRGBColor(255, 255, 255)
+            cell.fill.solid()
+            cell.fill.fore_color.rgb = PptxRGBColor(15, 76, 129)
+        for row_idx, row in enumerate(rows, start=1):
+            for col_idx, value in enumerate(row):
+                cell = table.cell(row_idx, col_idx)
+                cell.text = str(value)
+                cell.text_frame.paragraphs[0].font.size = PptxPt(11)
+                cell.text_frame.paragraphs[0].font.color.rgb = PptxRGBColor(30, 41, 59)
+                cell.fill.solid()
+                cell.fill.fore_color.rgb = PptxRGBColor(248, 250, 252) if row_idx % 2 else PptxRGBColor(237, 242, 247)
+
+        add_mlr_footer(slide)
+        return slide
+
+    def add_stat_dashboard_slide(title_text: str, subtitle_text: str, stats: List[tuple]):
+        """Big-number callout tiles for the executive summary — each `(value, label)`."""
+        slide = prs.slides.add_slide(blank_layout)
+        header_box = slide.shapes.add_textbox(PptxInches(0.6), PptxInches(0.5), PptxInches(12.1), PptxInches(1.0))
+        tf = header_box.text_frame
+        tf.word_wrap = True
+        p_title = tf.paragraphs[0]
+        p_title.text = title_text
+        p_title.font.size = PptxPt(26)
+        p_title.font.bold = True
+        p_title.font.color.rgb = PptxRGBColor(15, 76, 129)
+        p_sub = tf.add_paragraph()
+        p_sub.text = subtitle_text
+        p_sub.font.size = PptxPt(13)
+        p_sub.font.color.rgb = PptxRGBColor(100, 110, 120)
+
+        tile_width = PptxInches(3.9)
+        tile_height = PptxInches(2.2)
+        gap = PptxInches(0.15)
+        start_x = PptxInches(0.6)
+        start_y = PptxInches(2.0)
+        for idx, (value, label) in enumerate(stats[:6]):
+            col, row = idx % 3, idx // 3
+            x = start_x + col * (tile_width + gap)
+            y = start_y + row * (tile_height + gap)
+            box = slide.shapes.add_textbox(x, y, tile_width, tile_height)
+            tf2 = box.text_frame
+            tf2.word_wrap = True
+            p_val = tf2.paragraphs[0]
+            p_val.text = str(value)
+            p_val.font.size = PptxPt(30)
+            p_val.font.bold = True
+            p_val.font.color.rgb = PptxRGBColor(15, 76, 129)
+            p_lab = tf2.add_paragraph()
+            p_lab.text = str(label)
+            p_lab.font.size = PptxPt(12)
+            p_lab.font.color.rgb = PptxRGBColor(71, 85, 105)
+
+        add_mlr_footer(slide)
+        return slide
+
     # Slide 1: Title Slide
     s1 = prs.slides.add_slide(blank_layout)
     s1_box = s1.shapes.add_textbox(PptxInches(1.0), PptxInches(2.0), PptxInches(11.3), PptxInches(3.5))
@@ -181,15 +291,44 @@ def generate_pitch_deck_pptx(plan: CompleteBrandPlan, assets: CreativeCommercial
     s1_title.font.size = PptxPt(36)
     s1_title.font.bold = True
     s1_title.font.color.rgb = PptxRGBColor(15, 76, 129)
-    
+
     s1_sub = s1_tf.add_paragraph()
     s1_sub.text = f"Target Molecule: {plan.molecule_name} | {plan.therapy_area} | {plan.target_geography}\nLaunch Strategy & Commercial Operating Plan"
     s1_sub.font.size = PptxPt(18)
     s1_sub.font.color.rgb = PptxRGBColor(71, 85, 105)
     s1_sub.space_before = PptxPt(20)
+    s1_dev = s1_tf.add_paragraph()
+    s1_dev.text = "Molecule to Market AI — Developed by Animesh Mishra"
+    s1_dev.font.size = PptxPt(11)
+    s1_dev.font.italic = True
+    s1_dev.font.color.rgb = PptxRGBColor(148, 163, 184)
+    s1_dev.space_before = PptxPt(24)
     add_mlr_footer(s1)
-    
-    # Slide 2: Executive Charter
+
+    # Slide 2: Executive Summary Dashboard — real stat tiles, only for what's on file
+    stats: List[tuple] = []
+    if molecule and molecule.get("pharmacological_class") and molecule["pharmacological_class"] != "Not verified":
+        stats.append((molecule["pharmacological_class"], "Pharmacological class"))
+    market_summary = (competitor_data or {}).get("market_summary") or {}
+    if market_summary.get("has_data"):
+        stats.append((f"{market_summary.get('market_size')} {market_summary.get('value_unit', '')}", f"Measured market size ({market_summary.get('period', 'latest period')})"))
+        stats.append((str(market_summary.get("total_brands", "—")), "Competing brands on file"))
+    us_fda = (regulatory or {}).get("us_fda") or {}
+    if us_fda.get("status") and us_fda["status"] != "Investigational":
+        year = f", {us_fda['approval_year']}" if us_fda.get("approval_year") else ""
+        stats.append((f"{us_fda['status']}{year}", "US FDA status"))
+    if forecast:
+        stats.append((f"{forecast.treated_patient_pool:,}", "Treated patient pool (modeled)"))
+        stats.append((f"${forecast.realistic_scenario.year_5:,.0f}", "Year-5 realistic revenue (modeled)"))
+    if not stats:
+        stats = [("No verified data yet", "Run Modules 1, 4, 6, and 7 to populate this dashboard")]
+    add_stat_dashboard_slide(
+        "Executive Summary Dashboard",
+        "Every figure below is read from a verified module — none are estimated for this export",
+        stats,
+    )
+
+    # Slide 3: Executive Charter
     add_standard_slide(
         "Executive Brand Charter & Core Objective",
         "Defining our market ambition and clinical mission",
@@ -200,48 +339,140 @@ def generate_pitch_deck_pptx(plan: CompleteBrandPlan, assets: CreativeCommercial
             "Target Audience: Tier A Cardiologists, Endocrinologists, Nephrologists, and Primary Care."
         ]
     )
-    
-    # Slide 3: Landmark Clinical Evidence
-    add_standard_slide(
-        "Landmark Evidence & Survival Proof Points",
-        "Translating Level-1 randomized trials into doctor conviction",
-        [
-            "Insert claim-level evidence only after PMID/DOI/label verification.",
-            "Document endpoint, comparator, population, geography, and limitations.",
-            "Separate approved-label facts from internal strategic interpretation.",
-            "Include fair-balance safety language before external use."
-        ]
+
+    # Slide 4: Molecule & Regulatory Snapshot
+    reg_rows: List[List[str]] = []
+    if molecule:
+        for key, label in (("pharmacological_class", "Pharmacological class"), ("mechanism_of_action", "Mechanism of action"), ("chemical_class", "Chemical class")):
+            value = molecule.get(key)
+            if value and str(value) != "Not verified":
+                reg_rows.append([label, str(value)])
+    for agency_key, agency_label in (("us_fda", "US FDA"), ("india_cdsco", "India CDSCO"), ("eu_ema", "EU EMA")):
+        agency = (regulatory or {}).get(agency_key) or {}
+        status = agency.get("status")
+        if status and status != "Investigational":
+            detail = status
+            if agency.get("approval_year"):
+                detail += f" ({agency['approval_year']})"
+            app_count = len(agency.get("application_numbers") or [])
+            if app_count:
+                detail += f", {app_count} application(s) on file"
+            reg_rows.append([agency_label, detail])
+    if regulatory and regulatory.get("generic_vs_innovator_status"):
+        reg_rows.append(["Market status", regulatory["generic_vs_innovator_status"]])
+    if regulatory and regulatory.get("patent_expiry_timeline"):
+        reg_rows.append(["Patent / exclusivity timeline", regulatory["patent_expiry_timeline"]])
+    add_table_slide(
+        "Molecule & Regulatory Snapshot",
+        "Verified facts only — from PubChem and national regulatory labels",
+        ["Field", "Verified value"], reg_rows,
+        empty_note="No verified molecule or regulatory data on file yet — check Modules 1 and 4.",
     )
-    
-    # Slide 4: Strategic Positioning
+
+    # Slide 5: Competitive Landscape
+    competitor_rows = [
+        [c.get("brand_name", "—"), c.get("company", "—"),
+         f"{c['market_share_percentage']:.1f}%" if c.get("market_share_percentage") else "—",
+         "Team-attested" if c.get("data_source") == "manual" else "Measured"]
+        for c in (competitor_data or {}).get("competitors") or []
+    ][:10]
+    add_table_slide(
+        "Competitive Landscape",
+        f"{market_summary.get('total_brands', 0)} brands on file" if market_summary.get("has_data") else "Measured facts only — no invented share or positioning",
+        ["Brand", "Company", "Market share", "Source"], competitor_rows,
+        empty_note="No competitor data on file yet — check Module 6.",
+    )
+
+    # Slide 6: SWOT
+    swot = (competitor_data or {}).get("swot_analysis") or {}
+    swot_cols = [swot.get(k) or [] for k in ("strengths", "weaknesses", "opportunities", "threats")]
+    max_len = max((len(col) for col in swot_cols), default=0)
+    swot_rows = [
+        [col[i] if i < len(col) else "" for col in swot_cols]
+        for i in range(max_len)
+    ]
+    add_table_slide(
+        "SWOT Analysis",
+        "Analyst-curated where available — never extended beyond the source",
+        ["Strengths", "Weaknesses", "Opportunities", "Threats"], swot_rows,
+        empty_note="No SWOT analysis on file yet for this molecule — check Module 6.",
+    )
+
+    # Slide 7: Strategic Positioning
     add_standard_slide(
         "Strategic Brand Positioning & RTBs",
         "Differentiating against incumbent standard of care",
         [
             f"Positioning Statement: {plan.positioning_statement}",
             f"Campaign Theme: {assets.campaign_theme}",
-            "Reason to Believe #1: Pending verified source.",
-            "Reason to Believe #2: Pending label review.",
-            "Reason to Believe #3: Pending fair-balance assessment."
+            f"Brand Promise & RTBs: {plan.brand_promise_and_rtb}",
+            f"Competitive Gap: {plan.competitor_gap_and_differentiation}",
         ]
     )
-    
-    # Slide 5: Visual Aid Storyboard (Detailer Flow)
+
+    # Slide 8: Epidemiological Funnel & Revenue Scenarios
+    forecast_rows: List[List[str]] = []
+    if forecast:
+        forecast_rows = [
+            ["Prevalent patient pool", f"{forecast.prevalent_patient_pool:,}"],
+            ["Diagnosed patient pool", f"{forecast.diagnosed_patient_pool:,}"],
+            ["Treated patient pool", f"{forecast.treated_patient_pool:,}"],
+            ["Year-1 revenue (conservative / realistic / aggressive)",
+             f"${forecast.conservative_scenario.year_1:,.0f} / ${forecast.realistic_scenario.year_1:,.0f} / ${forecast.aggressive_scenario.year_1:,.0f}"],
+            ["Year-5 revenue (conservative / realistic / aggressive)",
+             f"${forecast.conservative_scenario.year_5:,.0f} / ${forecast.realistic_scenario.year_5:,.0f} / ${forecast.aggressive_scenario.year_5:,.0f}"],
+            ["Realistic-scenario 5-year CAGR", f"{forecast.realistic_scenario.cagr_percentage:.1f}%"],
+        ]
+    add_table_slide(
+        "Epidemiological Funnel & Revenue Scenarios",
+        f"Modeled from a {forecast.total_population:,}-person population at {forecast.prevalence_rate*100:.1f}% prevalence" if forecast else "Modeled forecast",
+        ["Metric", "Value"], forecast_rows,
+        empty_note="No forecast on file yet — check Module 7.",
+    )
+
+    # Slide 9: India Trade Price Structure (only when supplied)
+    if forecast and forecast.trade_price_structure:
+        tps = forecast.trade_price_structure
+        add_table_slide(
+            "India Trade Price Structure",
+            "Per patient-year, INR — manufacturer realization is PTS, not MRP",
+            ["Metric", "Value"],
+            [
+                ["MRP (patient pays)", f"₹{tps.mrp_per_patient_year:,.0f}"],
+                ["PTR (price to retailer)", f"₹{tps.ptr_per_patient_year:,.0f}"],
+                ["PTS (price to stockist)", f"₹{tps.pts_per_patient_year:,.0f}"],
+                ["Retailer margin", f"₹{tps.retailer_margin_amount:,.0f} ({tps.retailer_margin_percent:.1f}%)"],
+                ["Stockist margin", f"₹{tps.stockist_margin_amount:,.0f} ({tps.stockist_margin_percent:.1f}%)"],
+                ["Manufacturer realization of MRP", f"{tps.manufacturer_realization_percent_of_mrp:.1f}%"],
+            ],
+        )
+
+    # Slide 10: Visual Aid Storyboard (Detailer Flow)
     v_bullets = [f"Slide {s.slide_number}: {s.headline_for_doctor}" for s in assets.visual_aid_slides[:4]]
     add_standard_slide(
         "Field Force Detailing Flow (Visual Aid Concept)",
         "6-Step Doctor Conversation Structure",
         v_bullets
     )
-    
-    # Slide 6: 12-Month Launch Milestones
-    m_bullets = [f"{m.month_name}: {m.activity} ({m.responsible_team})" for m in plan.monthly_action_plan[:5]]
-    add_standard_slide(
+
+    # Slide 11: KPI Scorecard
+    kpi_rows = [[k.kpi_name, k.category, k.target_q1, k.target_q2, k.target_q4, k.target_year1] for k in plan.kpi_scorecard][:10]
+    add_table_slide(
+        "KPI Scorecard",
+        "Targets by quarter, as defined in the brand plan",
+        ["KPI", "Category", "Q1", "Q2", "Q4", "Year 1"], kpi_rows,
+        empty_note="No KPI scorecard on file yet — check Module 8.",
+    )
+
+    # Slide 12: 12-Month Launch Milestones
+    milestone_rows = [[m.month_name, m.activity, m.responsible_team, m.status] for m in plan.monthly_action_plan][:12]
+    add_table_slide(
         "Commercial Launch Milestones & Roadmap",
         "Key operational deliverables for Year 1 execution",
-        m_bullets
+        ["Month", "Activity", "Owner", "Status"], milestone_rows,
+        empty_note="No milestone plan on file yet — check Module 8.",
     )
-    
+
     buffer = io.BytesIO()
     prs.save(buffer)
     buffer.seek(0)

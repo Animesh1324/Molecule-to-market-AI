@@ -5,10 +5,13 @@ from fastapi import APIRouter, Query, Response, HTTPException, Request
 from . import auth
 from typing import List, Optional
 from datetime import datetime
+from ..models.brand_plan import CompleteBrandPlan
 from ..models.reports import MLRAuditEntry
 from ..services.ai_orchestrator import generate_strategic_brand_plan, generate_commercial_assets
+from ..services.competitor_service import generate_competitor_intelligence
 from ..services.forecast_service import calculate_market_forecast
 from ..services.pubchem_service import fetch_molecule_intelligence
+from ..services.regulatory_service import fetch_regulatory_intelligence
 from ..services.export_service import generate_brand_plan_docx, generate_pitch_deck_pptx, generate_financial_model_xlsx
 from ..db import database as db
 
@@ -85,21 +88,49 @@ async def create_audit_entry(entry: MLRAuditEntry, request: Request):
         raise HTTPException(status_code=409, detail=str(exc)) from exc
     return MLRAuditEntry(**payload)
 
+def _load_or_generate_plan(
+    project_id: Optional[str], molecule: str, brand_name: str, therapy_area: str, indication: str,
+) -> CompleteBrandPlan:
+    """Export the project's own saved plan when one exists, not a disposable fresh one.
+
+    Without a matching saved plan, an export previously always regenerated the
+    bare deterministic template from scratch — discarding any AI-drafted
+    content, edits, or competitor/forecast data already built up for that
+    project. A `project_id` that resolves to a saved plan takes precedence
+    over the query-string molecule/brand fields, which then only label a
+    freshly generated fallback plan.
+    """
+    if project_id:
+        existing = db.db_get_brand_plan(project_id)
+        if existing:
+            try:
+                return CompleteBrandPlan(**existing)
+            except Exception:
+                pass
+    return generate_strategic_brand_plan(
+        project_id=project_id or "export-temp",
+        molecule_name=molecule,
+        brand_name=brand_name,
+        therapy_area=therapy_area,
+        indication=indication,
+    )
+
+
 @router.get("/export/docx")
 async def export_brand_plan_docx(
     molecule: str = Query(..., description="Molecule name"),
     brand_name: str = Query(..., description="Brand name"),
     therapy_area: str = Query("Cardiometabolic", description="Therapy area"),
-    indication: str = Query("Heart Failure & CKD in T2D", description="Indication")
+    indication: str = Query("Heart Failure & CKD in T2D", description="Indication"),
+    project_id: Optional[str] = Query(None, description="Export this project's own saved plan, if one exists"),
 ):
-    plan = generate_strategic_brand_plan(
-        project_id="export-temp",
-        molecule_name=molecule,
-        brand_name=brand_name,
-        therapy_area=therapy_area,
-        indication=indication
-    )
-    buffer = generate_brand_plan_docx(plan)
+    plan = _load_or_generate_plan(project_id, molecule, brand_name, therapy_area, indication)
+    molecule_profile = None
+    try:
+        molecule_profile = await fetch_molecule_intelligence(molecule)
+    except Exception:
+        pass
+    buffer = generate_brand_plan_docx(plan, molecule_profile)
 
     return Response(
         content=buffer.getvalue(),
@@ -112,21 +143,68 @@ async def export_pitch_deck_pptx(
     molecule: str = Query(..., description="Molecule name"),
     brand_name: str = Query(..., description="Brand name"),
     therapy_area: str = Query("Cardiometabolic", description="Therapy area"),
-    indication: str = Query("Heart Failure & CKD in T2D", description="Indication")
+    indication: str = Query("Heart Failure & CKD in T2D", description="Indication"),
+    project_id: Optional[str] = Query(None, description="Export this project's own saved plan, if one exists"),
+    prevalence_rate: Optional[float] = Query(None, gt=0, le=1, description="Current forecast assumption, to keep the export in sync with the on-screen model"),
+    diagnosed_rate: Optional[float] = Query(None, gt=0, le=1),
+    treated_rate: Optional[float] = Query(None, gt=0, le=1),
+    brand_adoption_rate_y1: Optional[float] = Query(None, gt=0, le=1),
+    annual_cost_per_patient_usd: Optional[float] = Query(None, gt=0, le=10_000_000),
+    mrp_per_patient_year_inr: Optional[float] = Query(None, gt=0, le=100_000_000),
+    ptr_per_patient_year_inr: Optional[float] = Query(None, gt=0, le=100_000_000),
+    pts_per_patient_year_inr: Optional[float] = Query(None, gt=0, le=100_000_000),
 ):
-    plan = generate_strategic_brand_plan(
-        project_id="export-temp",
-        molecule_name=molecule,
-        brand_name=brand_name,
-        therapy_area=therapy_area,
-        indication=indication
-    )
+    plan = _load_or_generate_plan(project_id, molecule, brand_name, therapy_area, indication)
     assets = generate_commercial_assets(
         molecule_name=molecule,
         brand_name=brand_name,
         indication=indication
     )
-    buffer = generate_pitch_deck_pptx(plan, assets)
+
+    molecule_profile = None
+    regulatory = None
+    competitor_data = None
+    forecast = None
+    try:
+        profile_result = await fetch_molecule_intelligence(molecule)
+        if profile_result is not None:
+            molecule_profile = profile_result.model_dump() if hasattr(profile_result, "model_dump") else profile_result.dict()
+    except Exception:
+        pass
+    try:
+        regulatory_result = await fetch_regulatory_intelligence(molecule)
+        if regulatory_result is not None:
+            regulatory = regulatory_result.model_dump() if hasattr(regulatory_result, "model_dump") else regulatory_result.dict()
+    except Exception:
+        pass
+    try:
+        competitor_result = generate_competitor_intelligence(molecule, indication)
+        competitor_data = competitor_result.model_dump() if hasattr(competitor_result, "model_dump") else competitor_result.dict()
+    except Exception:
+        pass
+    # Only forecast when at least one assumption was supplied — an export
+    # with no forecast context on screen should say so, not silently invent
+    # a forecast from default epidemiology assumptions the user never set.
+    if any(v is not None for v in (prevalence_rate, diagnosed_rate, treated_rate, brand_adoption_rate_y1, annual_cost_per_patient_usd)):
+        try:
+            forecast = calculate_market_forecast(
+                therapy_area=therapy_area,
+                prevalence_rate=prevalence_rate if prevalence_rate is not None else 0.105,
+                diagnosed_rate=diagnosed_rate if diagnosed_rate is not None else 0.72,
+                treated_rate=treated_rate if treated_rate is not None else 0.60,
+                brand_adoption_rate_y1=brand_adoption_rate_y1 if brand_adoption_rate_y1 is not None else 0.04,
+                annual_cost_per_patient_usd=annual_cost_per_patient_usd if annual_cost_per_patient_usd is not None else 3600.0,
+                mrp_per_patient_year_inr=mrp_per_patient_year_inr,
+                ptr_per_patient_year_inr=ptr_per_patient_year_inr,
+                pts_per_patient_year_inr=pts_per_patient_year_inr,
+            )
+        except ValueError:
+            pass
+
+    buffer = generate_pitch_deck_pptx(
+        plan, assets,
+        competitor_data=competitor_data, regulatory=regulatory, molecule=molecule_profile, forecast=forecast,
+    )
 
     return Response(
         content=buffer.getvalue(),

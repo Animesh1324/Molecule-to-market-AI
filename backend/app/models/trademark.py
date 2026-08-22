@@ -27,3 +27,8 @@ class TrademarkIntelligence(BaseModel):
     competitor_naming_patterns: List[CompetitorNamingPattern] = []
     suggested_brand_names: List[TrademarkNameSuggestion] = []
     trademark_risk_advisory: str
+    # Provenance for the naming grid, so the UI can tell an AI-drafted batch
+    # (creative, requirement-aware) apart from the deterministic fallback.
+    ai_generated: bool = False
+    requirement_applied: Optional[str] = None
+    existing_brands_source: str = "none"  # 'market_data' | 'reference_class' | 'none'

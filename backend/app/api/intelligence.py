@@ -7,7 +7,7 @@ from pydantic import BaseModel
 
 from ..models.cdsco import CDSCOIntelligence
 from ..models.patient_experience import PatientExperience
-from ..services.brand_name_generator import generate_candidates
+from ..services.brand_name_generator import generate_ai_candidates, generate_candidates
 from ..services.cdsco_service import build_cdsco_intelligence
 from ..services.patient_experience_service import build_patient_experience
 
@@ -21,6 +21,8 @@ class BrandNameCandidates(BaseModel):
     candidates: List[dict]
     screening_basis: str
     next_step: str
+    ai_generated: bool = False
+    requirement_applied: str = ""
 
 
 @router.get("/patient-experience", response_model=PatientExperience)
@@ -37,11 +39,23 @@ async def brand_names(
     therapy_area: str = Query("", description="Therapy area, to steer the naming roots"),
     indication: str = Query("", description="Indication, to steer the naming roots"),
     count: int = Query(10, ge=1, le=30, description="How many candidates to return"),
+    requirement: str = Query("", description="Free-text naming brief for AI-drafted candidates, e.g. 'should evoke once-weekly convenience'"),
 ):
-    """Novel brand-name candidates screened against marketed FDA brand names."""
-    candidates = await asyncio.get_event_loop().run_in_executor(
-        None, generate_candidates, molecule, therapy_area, indication, count
-    )
+    """Novel brand-name candidates screened against marketed FDA brand names.
+
+    With a `requirement`, candidates are AI-drafted to that brief (when an
+    Anthropic key is configured) but still screened through the same Orange
+    Book collision check as the algorithmic candidates — an AI suggestion is
+    never trusted on its own judgment about collision risk.
+    """
+    if requirement.strip():
+        candidates = await generate_ai_candidates(molecule, therapy_area, indication, requirement, count)
+        ai_used = any(c.get("ai_generated") for c in candidates)
+    else:
+        candidates = await asyncio.get_event_loop().run_in_executor(
+            None, generate_candidates, molecule, therapy_area, indication, count
+        )
+        ai_used = False
     return BrandNameCandidates(
         molecule=molecule,
         therapy_area=therapy_area,
@@ -56,6 +70,8 @@ async def brand_names(
             "needs a CAPTCHA and cannot be automated. Each candidate carries its "
             "IP India, USPTO, and WIPO search links."
         ),
+        ai_generated=ai_used,
+        requirement_applied=requirement.strip(),
     )
 
 

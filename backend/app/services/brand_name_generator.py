@@ -17,6 +17,7 @@ from typing import Dict, List, Optional, Set
 from urllib.parse import quote_plus
 
 from . import orange_book
+from .claude_client import ClaudeUnavailable, generate_json, is_configured as ai_naming_configured
 from .molecule_resolver import resolve as resolve_molecule
 
 logger = logging.getLogger(__name__)
@@ -168,6 +169,156 @@ def _too_close(candidate: str, marketed_by_initial: Dict[str, List[str]]) -> boo
                 return True
     return False
 
+def _screen_name(
+    name: str,
+    rationale: str,
+    construction: str,
+    marketed: Set[str],
+    marketed_by_initial: Dict[str, List[str]],
+) -> Optional[Dict[str, object]]:
+    """Run one candidate string through the same real-collision checks `consider` applies.
+
+    Standalone so AI-proposed names get exactly the same Orange Book screening
+    as the algorithmic ones — an AI-suggested name is never trusted on its own
+    judgment about collision risk.
+    """
+    clean = name.strip().title()
+    upper = clean.upper()
+    if not (MIN_LEN <= len(clean) <= MAX_LEN):
+        return None
+    if any(bad in clean.lower() for bad in BANNED_FRAGMENTS):
+        return None
+    if not re.fullmatch(r"[A-Za-z]+", clean):
+        return None
+    exact = upper in marketed
+    phonetic = _too_close(upper, marketed_by_initial)
+    return {
+        "name": clean,
+        "rationale": rationale,
+        "construction": construction,
+        "length": len(clean),
+        "syllable_estimate": max(1, len(re.findall(r"[aeiouy]+", clean.lower()))),
+        "soundex": _soundex(clean),
+        "exact_collision_with_marketed_brand": exact,
+        "phonetic_collision_with_marketed_brand": phonetic,
+        "screening_status": (
+            "Rejected — exact match to a marketed brand" if exact
+            else "Caution — sounds like a marketed brand" if phonetic
+            else "Clear of FDA Orange Book brands"
+        ),
+    }
+
+
+def _attach_search_links(candidate: Dict[str, object]) -> None:
+    name = str(candidate["name"])
+    candidate["ip_india_search_url"] = "https://tmrsearch.ipindia.gov.in/tmrpublicsearch/"
+    candidate["ip_india_search_term"] = name
+    candidate["uspto_search_url"] = f"https://tmsearch.uspto.gov/search/search-results?q={quote_plus(name)}"
+    candidate["wipo_search_url"] = f"https://branddb.wipo.int/en/quicksearch/brand/?q={quote_plus(name)}"
+    candidate["verification_required"] = (
+        "Screened only against FDA Orange Book brand names. Run the trademark "
+        "searches above — IP India for Indian rights — before committing."
+    )
+
+
+_AI_NAMING_SYSTEM_PROMPT = """You are a pharmaceutical brand-naming specialist proposing \
+candidate trade names for a new molecule, working to a brand team's stated naming brief.
+
+Rules:
+1. Every name must be an invented, coinable word — never a real dictionary word, \
+never an existing drug name.
+2. Never embed an unsubstantiated clinical claim in the name itself — no "cure", \
+"safe", "best", "pure", "heal", "miracle", "perfect", or "super".
+3. Satisfy the brand team's stated requirement — it is a brief, not a suggestion to \
+weigh against your own preference.
+4. Aim for 5-9 letters, one or two syllables, easy to say on a phone call.
+5. Ground the rationale in the molecule's real pharmacological class or the stated \
+therapy area — do not invent a clinical claim to justify a name."""
+
+
+async def _ai_raw_candidates(
+    molecule: str, therapy_area: str, indication: str, requirement: str, count: int,
+) -> List[Dict[str, str]]:
+    schema = {
+        "type": "object",
+        "properties": {
+            "names": {
+                "type": "array",
+                "items": {
+                    "type": "object",
+                    "properties": {
+                        "name": {"type": "string"},
+                        "rationale": {"type": "string"},
+                    },
+                    "required": ["name", "rationale"],
+                    "additionalProperties": False,
+                },
+            }
+        },
+        "required": ["names"],
+        "additionalProperties": False,
+    }
+    prompt = (
+        f"Molecule: {molecule}\nTherapy area: {therapy_area or 'unspecified'}\n"
+        f"Indication: {indication or 'unspecified'}\nNaming requirement: {requirement}\n"
+        f"Propose {count} candidate names satisfying the requirement."
+    )
+    try:
+        result = await generate_json(system=_AI_NAMING_SYSTEM_PROMPT, prompt=prompt, schema=schema)
+    except ClaudeUnavailable as exc:
+        logger.warning("AI brand naming unavailable, using algorithmic candidates only: %s", exc)
+        return []
+    names = result.get("names")
+    return names if isinstance(names, list) else []
+
+
+async def generate_ai_candidates(
+    molecule: str,
+    therapy_area: str = "",
+    indication: str = "",
+    requirement: str = "",
+    wanted: int = 10,
+) -> List[Dict[str, object]]:
+    """AI-proposed candidates honoring a free-text naming brief, screened the same as algorithmic ones.
+
+    Falls back to the deterministic generator (ignoring the unmet requirement,
+    since nothing can honor it without a model) when AI drafting has no key
+    configured or the call fails — the caller always gets a usable list.
+    """
+    if not ai_naming_configured():
+        return generate_candidates(molecule, therapy_area, indication, wanted)
+
+    marketed = _marketed_names()
+    marketed_by_initial: Dict[str, List[str]] = {}
+    for name in marketed:
+        marketed_by_initial.setdefault(name[:1], []).append(name)
+
+    raw = await _ai_raw_candidates(molecule, therapy_area, indication, requirement, wanted * 2)
+    if not raw:
+        return generate_candidates(molecule, therapy_area, indication, wanted)
+
+    seen: Set[str] = set()
+    screened: List[Dict[str, object]] = []
+    for entry in raw:
+        name = str(entry.get("name") or "").strip()
+        if not name or name.upper() in seen:
+            continue
+        candidate = _screen_name(
+            name, str(entry.get("rationale") or ""), "AI-generated to the stated requirement",
+            marketed, marketed_by_initial,
+        )
+        if candidate is None or candidate["exact_collision_with_marketed_brand"]:
+            continue
+        seen.add(name.upper())
+        candidate["ai_generated"] = True
+        screened.append(candidate)
+
+    screened.sort(key=lambda c: (bool(c["phonetic_collision_with_marketed_brand"]), int(c["length"])))
+    for candidate in screened[:wanted]:
+        _attach_search_links(candidate)
+    return screened[:wanted]
+
+
 def generate_candidates(
     molecule: str,
     therapy_area: str = "",
@@ -272,19 +423,7 @@ def generate_candidates(
     )
 
     for candidate in ranked:
-        name = str(candidate["name"])
-        candidate["ip_india_search_url"] = "https://tmrsearch.ipindia.gov.in/tmrpublicsearch/"
-        candidate["ip_india_search_term"] = name
-        candidate["uspto_search_url"] = (
-            f"https://tmsearch.uspto.gov/search/search-results?q={quote_plus(name)}"
-        )
-        candidate["wipo_search_url"] = (
-            "https://branddb.wipo.int/en/quicksearch/brand/"
-            f"?q={quote_plus(name)}"
-        )
-        candidate["verification_required"] = (
-            "Screened only against FDA Orange Book brand names. Run the trademark "
-            "searches above — IP India for Indian rights — before committing."
-        )
+        candidate["ai_generated"] = False
+        _attach_search_links(candidate)
 
     return ranked[:wanted]

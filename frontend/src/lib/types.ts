@@ -182,6 +182,9 @@ export interface TrademarkIntelligence {
   competitor_naming_patterns: CompetitorNamingPattern[];
   suggested_brand_names: TrademarkNameSuggestion[];
   trademark_risk_advisory: string;
+  ai_generated: boolean;
+  requirement_applied: string | null;
+  existing_brands_source: 'market_data' | 'reference_class' | 'none';
 }
 
 export interface CompetitorProfile {
@@ -444,6 +447,22 @@ export interface PatientEducationLeaflet {
   lifestyle_and_diet_tips: string[];
 }
 
+export interface VisualAidBrief {
+  molecule_name: string;
+  brand_name: string;
+  main_indication: string;
+  brand_and_pack_shot: string;
+  punchline: string;
+  clinical_message_points: string[];
+  hero_visual_concept: string;
+  composition: string;
+  scientific_support: string[];
+  call_to_prescribe: string;
+  image_generation_prompt: string;
+  ai_drafted: boolean;
+  ai_review_flags: string[];
+}
+
 export interface CreativeCommercialAssets {
   molecule_name: string;
   brand_name: string;
@@ -583,6 +602,7 @@ export interface BrandNameCandidate {
   uspto_search_url: string;
   wipo_search_url: string;
   verification_required: string;
+  ai_generated?: boolean;
 }
 
 export interface BrandNameCandidates {
@@ -592,6 +612,8 @@ export interface BrandNameCandidates {
   candidates: BrandNameCandidate[];
   screening_basis: string;
   next_step: string;
+  ai_generated: boolean;
+  requirement_applied: string;
 }
 
 // --- CDSCO India checklist ---------------------------------------------------

@@ -21,7 +21,8 @@ import {
   AlertTriangle,
   Send,
   RefreshCw,
-  Award
+  Award,
+  Plus
 } from 'lucide-react';
 import Link from 'next/link';
 import Navbar from '../../../components/Navbar';
@@ -39,6 +40,7 @@ import { useCurrency } from '../../../components/CurrencyProvider';
 import { formatCurrencyFromINR } from '../../../lib/currency';
 import ManualCompetitorPanel from '../../../components/ManualCompetitorPanel';
 import VisualAidCarousel from '../../../components/VisualAidCarousel';
+import VisualAidBriefPanel from '../../../components/VisualAidBriefPanel';
 import MRObjectionSimulator from '../../../components/MRObjectionSimulator';
 import AICoPilotDrawer from '../../../components/AICoPilotDrawer';
 
@@ -55,6 +57,7 @@ import {
   MarketForecast,
   CompleteBrandPlan,
   CreativeCommercialAssets,
+  VisualAidBrief,
   MLRAuditEntry,
   MoleculeLifecycle,
   PatientExperience,
@@ -76,6 +79,7 @@ import {
   fetchMarketForecast,
   fetchBrandPlan,
   fetchCreativeAssets,
+  fetchVisualAidBrief,
   fetchAuditTrail,
   fetchMoleculeLifecycle,
   fetchPatientExperience,
@@ -120,6 +124,11 @@ export default function ProjectWorkspacePage() {
   const [lifecycle, setLifecycle] = useState<MoleculeLifecycle | null>(null);
   const [patientExperience, setPatientExperience] = useState<PatientExperience | null>(null);
   const [brandNames, setBrandNames] = useState<BrandNameCandidates | null>(null);
+  const [namesLoading, setNamesLoading] = useState(false);
+  const [tmRequirement, setTmRequirement] = useState('');
+  const [tmLoading, setTmLoading] = useState(false);
+  const [visualAidBrief, setVisualAidBrief] = useState<VisualAidBrief | null>(null);
+  const [visualAidLoading, setVisualAidLoading] = useState(false);
   const [cdsco, setCdsco] = useState<CDSCOIntelligence | null>(null);
 
   // Loading states
@@ -261,6 +270,93 @@ export default function ProjectWorkspacePage() {
       setForecastError(
         e instanceof Error && e.message ? e.message : 'Could not recalculate the forecast.'
       );
+    }
+  };
+
+  const handleGenerateNamesWithAI = async (requirement: string) => {
+    if (!project || !requirement.trim()) return;
+    setNamesLoading(true);
+    try {
+      const result = await fetchBrandNameCandidates(
+        project.target_molecule_name, project.therapy_area, project.primary_indication, 10, requirement,
+      );
+      setBrandNames(result);
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setNamesLoading(false);
+    }
+  };
+
+  const handleMoreNameOptions = async () => {
+    if (!project || !brandNames) return;
+    setNamesLoading(true);
+    try {
+      const result = await fetchBrandNameCandidates(
+        project.target_molecule_name, project.therapy_area, project.primary_indication,
+        brandNames.candidates.length + 10, brandNames.requirement_applied,
+      );
+      const existingNames = new Set(brandNames.candidates.map((c) => c.name));
+      const merged = [...brandNames.candidates, ...result.candidates.filter((c) => !existingNames.has(c.name))];
+      setBrandNames({ ...result, candidates: merged });
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setNamesLoading(false);
+    }
+  };
+
+  const handleGenerateTrademarkNamesWithAI = async () => {
+    if (!project) return;
+    setTmLoading(true);
+    try {
+      const result = await fetchTrademarkAnalysis(project.target_molecule_name, project.therapy_area, {
+        indication: project.primary_indication,
+        requirement: tmRequirement || undefined,
+        count: 8,
+      });
+      setTrademark(result);
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setTmLoading(false);
+    }
+  };
+
+  const handleMoreTrademarkOptions = async () => {
+    if (!project || !trademark) return;
+    setTmLoading(true);
+    try {
+      const existingNames = trademark.suggested_brand_names.map((s) => s.name);
+      const result = await fetchTrademarkAnalysis(project.target_molecule_name, project.therapy_area, {
+        indication: project.primary_indication,
+        requirement: trademark.requirement_applied || undefined,
+        count: 8,
+        exclude: existingNames,
+      });
+      setTrademark({
+        ...result,
+        suggested_brand_names: [...trademark.suggested_brand_names, ...result.suggested_brand_names],
+      });
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setTmLoading(false);
+    }
+  };
+
+  const handleGenerateVisualAidBrief = async () => {
+    if (!project) return;
+    setVisualAidLoading(true);
+    try {
+      const result = await fetchVisualAidBrief(
+        project.target_molecule_name, project.brand_working_name, project.primary_indication,
+      );
+      setVisualAidBrief(result);
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setVisualAidLoading(false);
     }
   };
 
@@ -1092,7 +1188,30 @@ export default function ProjectWorkspacePage() {
                 <span className="text-xs font-mono text-teal-700 dark:text-teal-400 uppercase tracking-wider">Module 5: Trademark Clearance & Pharma Brand Naming</span>
                 <h1 className="text-2xl font-extrabold text-slate-900 dark:text-white mt-0.5">Brand Naming & Phonetic Conflict Analysis</h1>
                 <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">Phonetic Soundex collision analysis and Class 5 pharmaceutical trademark search links</p>
+                {trademark.ai_generated && (
+                  <span className="inline-flex items-center gap-1 mt-2 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-brand-500/10 text-brand-600 dark:text-brand-400">
+                    <Sparkles className="w-3 h-3" /> AI-drafted to your requirement
+                  </span>
+                )}
               </div>
+            </div>
+
+            <div className="p-5 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 flex flex-col sm:flex-row gap-3 items-stretch sm:items-center">
+              <input
+                type="text"
+                value={tmRequirement}
+                onChange={(e) => setTmRequirement(e.target.value)}
+                placeholder="Naming requirement, e.g. &quot;should sound premium and evoke weekly dosing&quot;"
+                className="flex-1 px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-950 text-sm text-slate-900 dark:text-white placeholder:text-slate-400"
+              />
+              <button
+                onClick={handleGenerateTrademarkNamesWithAI}
+                disabled={tmLoading || !tmRequirement.trim()}
+                className="flex items-center justify-center gap-2 px-4 py-2 rounded-lg bg-brand-600 hover:bg-brand-700 disabled:opacity-50 disabled:cursor-not-allowed text-white text-sm font-semibold whitespace-nowrap"
+              >
+                <Sparkles className="w-4 h-4" />
+                Generate with AI
+              </button>
             </div>
 
             {/* Proposed Brand Names Grid */}
@@ -1145,6 +1264,17 @@ export default function ProjectWorkspacePage() {
                   </div>
                 </div>
               ))}
+            </div>
+
+            <div className="flex justify-center">
+              <button
+                onClick={handleMoreTrademarkOptions}
+                disabled={tmLoading}
+                className="flex items-center gap-2 px-4 py-2 rounded-lg border border-slate-200 dark:border-slate-700 hover:border-brand-500 hover:text-brand-500 disabled:opacity-50 text-sm font-semibold text-slate-600 dark:text-slate-300 transition-colors"
+              >
+                <Plus className="w-4 h-4" />
+                More options
+              </button>
             </div>
 
             {/* Existing Competitor Naming Patterns */}
@@ -1580,7 +1710,7 @@ export default function ProjectWorkspacePage() {
               </div>
               <div className="flex items-center space-x-2">
                 <a
-                  href={getExportDocxUrl(project.target_molecule_name, brandDisplayName, project.therapy_area, project.primary_indication)}
+                  href={getExportDocxUrl(project.target_molecule_name, brandDisplayName, project.therapy_area, project.primary_indication, project.id)}
                   className="flex items-center space-x-1.5 px-4 py-2 rounded-xl bg-brand-600 hover:bg-brand-500 text-slate-900 dark:text-white text-xs font-semibold transition shadow-md shadow-brand-500/20"
                 >
                   <Download className="w-3.5 h-3.5" />
@@ -1694,6 +1824,13 @@ export default function ProjectWorkspacePage() {
               </div>
             </div>
 
+            {/* Single-Page Visual Aid Brief & Image-Generation Prompt */}
+            <VisualAidBriefPanel
+              brief={visualAidBrief}
+              onGenerate={handleGenerateVisualAidBrief}
+              loading={visualAidLoading}
+            />
+
             {/* 6-Slide Visual Aid Carousel */}
             <VisualAidCarousel slides={assets.visual_aid_slides} brandName={brandDisplayName} />
 
@@ -1761,7 +1898,7 @@ export default function ProjectWorkspacePage() {
                   </p>
                 </div>
                 <a
-                  href={getExportDocxUrl(project.target_molecule_name, brandDisplayName, project.therapy_area, project.primary_indication)}
+                  href={getExportDocxUrl(project.target_molecule_name, brandDisplayName, project.therapy_area, project.primary_indication, project.id)}
                   className="w-full flex items-center justify-center space-x-2 py-2.5 rounded-xl bg-brand-600 hover:bg-brand-500 text-slate-900 dark:text-white text-xs font-semibold transition shadow-md shadow-brand-500/20"
                 >
                   <Download className="w-4 h-4" />
@@ -1781,7 +1918,14 @@ export default function ProjectWorkspacePage() {
                   </p>
                 </div>
                 <a
-                  href={getExportPptxUrl(project.target_molecule_name, brandDisplayName, project.therapy_area, project.primary_indication)}
+                  href={getExportPptxUrl(project.target_molecule_name, brandDisplayName, project.therapy_area, project.primary_indication, project.id, {
+                    prevalence_rate: prevalenceRate,
+                    diagnosed_rate: diagnosedRate,
+                    treated_rate: treatedRate,
+                    brand_adoption_rate_y1: adoptionRate,
+                    annual_cost_per_patient_usd: annualCost,
+                    ...(tradePricingEnabled ? { mrp_per_patient_year_inr: mrpInr, ptr_per_patient_year_inr: ptrInr, pts_per_patient_year_inr: ptsInr } : {}),
+                  })}
                   className="w-full flex items-center justify-center space-x-2 py-2.5 rounded-xl bg-amber-600 hover:bg-amber-500 text-slate-900 dark:text-white text-xs font-semibold transition shadow-md shadow-amber-500/20"
                 >
                   <Download className="w-4 h-4" />
@@ -1905,7 +2049,12 @@ export default function ProjectWorkspacePage() {
         {activeTab === 'naming' && (
           <div className="space-y-6">
             {brandNames ? (
-              <BrandNamesPanel data={brandNames} />
+              <BrandNamesPanel
+                data={brandNames}
+                onGenerate={handleGenerateNamesWithAI}
+                onMoreOptions={handleMoreNameOptions}
+                loading={namesLoading}
+              />
             ) : (
               <div className="p-8 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-center space-y-2">
                 <div className="w-8 h-8 mx-auto rounded-full border-4 border-brand-500 border-t-transparent animate-spin" />
