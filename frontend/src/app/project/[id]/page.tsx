@@ -22,7 +22,8 @@ import {
   Send,
   RefreshCw,
   Award,
-  Plus
+  Plus,
+  ClipboardList
 } from 'lucide-react';
 import Link from 'next/link';
 import Navbar from '../../../components/Navbar';
@@ -42,6 +43,7 @@ import ManualCompetitorPanel from '../../../components/ManualCompetitorPanel';
 import VisualAidCarousel from '../../../components/VisualAidCarousel';
 import VisualAidBriefPanel from '../../../components/VisualAidBriefPanel';
 import MarkdownContent from '../../../components/MarkdownContent';
+import PrimaryResearchPanel from '../../../components/PrimaryResearchPanel';
 import MRObjectionSimulator from '../../../components/MRObjectionSimulator';
 import AICoPilotDrawer from '../../../components/AICoPilotDrawer';
 
@@ -377,12 +379,13 @@ export default function ProjectWorkspacePage() {
     { id: 'patient', label: '7. Patient Experience', icon: Users },
     { id: 'druginfo', label: '8. Drug Intelligence', icon: BookOpen },
     { id: 'competitors', label: '9. Competitors & SWOT', icon: BarChart2 },
-    { id: 'forecast', label: '10. Market Forecasting', icon: Sliders },
-    { id: 'trademark', label: '11. Trademark & Naming', icon: Sparkles },
-    { id: 'naming', label: '12. Brand Names', icon: Sparkles },
-    { id: 'brand_plan', label: '13. Brand Plan Builder', icon: Layers },
-    { id: 'creative', label: '14. Creative & Detailing', icon: Sparkles },
-    { id: 'reports', label: '15. Report Center & MLR', icon: Download }
+    { id: 'primary_research', label: '10. Primary Research: RCPA & HCP Survey', icon: ClipboardList },
+    { id: 'forecast', label: '11. Market Forecasting', icon: Sliders },
+    { id: 'trademark', label: '12. Trademark & Naming', icon: Sparkles },
+    { id: 'naming', label: '13. Brand Names', icon: Sparkles },
+    { id: 'brand_plan', label: '14. Brand Plan Builder', icon: Layers },
+    { id: 'creative', label: '15. Creative & Detailing', icon: Sparkles },
+    { id: 'reports', label: '16. Report Center & MLR', icon: Download }
   ];
 
   if (loading) {
@@ -1192,7 +1195,7 @@ export default function ProjectWorkspacePage() {
           <div className="space-y-6">
             <div className="flex flex-wrap items-center justify-between gap-4">
               <div>
-                <span className="text-xs font-mono text-teal-700 dark:text-teal-400 uppercase tracking-wider">Module 11: Trademark Clearance & Pharma Brand Naming</span>
+                <span className="text-xs font-mono text-teal-700 dark:text-teal-400 uppercase tracking-wider">Module 12: Trademark Clearance & Pharma Brand Naming</span>
                 <h1 className="text-2xl font-extrabold text-slate-900 dark:text-white mt-0.5">Brand Naming & Phonetic Conflict Analysis</h1>
                 <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">Phonetic Soundex collision analysis and Class 5 pharmaceutical trademark search links</p>
                 {trademark.ai_generated && (
@@ -1201,7 +1204,7 @@ export default function ProjectWorkspacePage() {
                   </span>
                 )}
                 <p className="text-[11px] text-slate-400 dark:text-slate-500 mt-2">
-                  Collision checks against real brands from the loaded market extract. For a check against the FDA Orange Book's ~49,000 marketed trade names instead, see Module 12: Brand Names.
+                  Collision checks against real brands from the loaded market extract. For a check against the FDA Orange Book's ~49,000 marketed trade names instead, see Module 13: Brand Names.
                 </p>
               </div>
             </div>
@@ -1451,13 +1454,29 @@ export default function ProjectWorkspacePage() {
         )}
 
         {/* ========================================================================= */}
+        {/* MODULE 10: PRIMARY RESEARCH — RCPA & HCP QUESTIONNAIRE */}
+        {/* ========================================================================= */}
+        {activeTab === 'primary_research' && project && (
+          <div className="space-y-6">
+            <div className="flex flex-wrap items-center justify-between gap-4">
+              <div>
+                <span className="text-xs font-mono text-teal-700 dark:text-teal-400 uppercase tracking-wider">Module 10: Primary Research</span>
+                <h1 className="text-2xl font-extrabold text-slate-900 dark:text-white mt-0.5">RCPA &amp; HCP Questionnaire</h1>
+                <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">Record field research the team collects itself — feeds directly into the brand plan's doctor &amp; market insights</p>
+              </div>
+            </div>
+            <PrimaryResearchPanel projectId={project.id} />
+          </div>
+        )}
+
+        {/* ========================================================================= */}
         {/* MODULE 7: MARKET SIZING & FORECASTING */}
         {/* ========================================================================= */}
         {activeTab === 'forecast' && forecast && (
           <div className="space-y-6">
             <div className="flex flex-wrap items-center justify-between gap-4">
               <div>
-                <span className="text-xs font-mono text-teal-700 dark:text-teal-400 uppercase tracking-wider">Module 10: Epidemiological Sizing & Scenario Forecaster</span>
+                <span className="text-xs font-mono text-teal-700 dark:text-teal-400 uppercase tracking-wider">Module 11: Epidemiological Sizing & Scenario Forecaster</span>
                 <h1 className="text-2xl font-extrabold text-slate-900 dark:text-white mt-0.5">Market Sizing & 5-Year Revenue Forecast</h1>
                 <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">Adjust epidemiological funnel variables and simulate revenue projections</p>
               </div>
@@ -1714,7 +1733,7 @@ export default function ProjectWorkspacePage() {
           <div className="space-y-6">
             <div className="flex flex-wrap items-center justify-between gap-4">
               <div>
-                <span className="text-xs font-mono text-teal-700 dark:text-teal-400 uppercase tracking-wider">Module 13: The 12-Section Strategic Brand Architecture</span>
+                <span className="text-xs font-mono text-teal-700 dark:text-teal-400 uppercase tracking-wider">Module 14: The 12-Section Strategic Brand Architecture</span>
                 <h1 className="text-2xl font-extrabold text-slate-900 dark:text-white mt-0.5">Pharma Brand Strategy Plan</h1>
                 <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">Complete commercial and medical plan for {brandDisplayName} ({project.target_molecule_name})</p>
               </div>
@@ -1816,7 +1835,7 @@ export default function ProjectWorkspacePage() {
           <div className="space-y-8">
             <div className="flex flex-wrap items-center justify-between gap-4">
               <div>
-                <span className="text-xs font-mono text-teal-700 dark:text-teal-400 uppercase tracking-wider">Module 14: Commercial & Detailing Collateral</span>
+                <span className="text-xs font-mono text-teal-700 dark:text-teal-400 uppercase tracking-wider">Module 15: Commercial & Detailing Collateral</span>
                 <h1 className="text-2xl font-extrabold text-slate-900 dark:text-white mt-0.5">Commercial Asset & Visual Aid Studio</h1>
                 <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">Interactive 6-slide doctor detailer storyboard, LBL brief, and MR objection simulator</p>
               </div>
@@ -1888,7 +1907,7 @@ export default function ProjectWorkspacePage() {
           <div className="space-y-6">
             <div className="flex flex-wrap items-center justify-between gap-4">
               <div>
-                <span className="text-xs font-mono text-teal-700 dark:text-teal-400 uppercase tracking-wider">Module 15: Multi-Format Export Center & MLR Governance</span>
+                <span className="text-xs font-mono text-teal-700 dark:text-teal-400 uppercase tracking-wider">Module 16: Multi-Format Export Center & MLR Governance</span>
                 <h1 className="text-2xl font-extrabold text-slate-900 dark:text-white mt-0.5">Report Center & Compliance Signoff</h1>
                 <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">Export high-fidelity Word, PowerPoint, and Excel deliverables and review timestamped audit logs</p>
               </div>

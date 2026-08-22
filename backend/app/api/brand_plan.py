@@ -11,6 +11,7 @@ from ..services.pubchem_service import fetch_molecule_intelligence
 from ..services.pubmed_service import search_pubmed_evidence
 from ..services.competitor_service import generate_competitor_intelligence
 from ..services.regulatory_service import fetch_regulatory_intelligence
+from ..services.primary_research_service import summarize_primary_research
 from ..db import database as db
 
 logger = logging.getLogger(__name__)
@@ -119,6 +120,12 @@ async def get_or_generate_brand_plan(
         logger.warning("Competitor grounding unavailable for %s", molecule, exc_info=True)
         competitor_data = None
 
+    try:
+        primary_research = summarize_primary_research(project_id)
+    except Exception:
+        logger.warning("Primary research grounding unavailable for %s", project_id, exc_info=True)
+        primary_research = None
+
     plan = generate_strategic_brand_plan(
         project_id=project_id,
         molecule_name=molecule,
@@ -127,6 +134,7 @@ async def get_or_generate_brand_plan(
         indication=indication,
         target_geography=target_geography,
         competitor_data=competitor_data,
+        primary_research=primary_research,
     )
 
     if ai and ai_configured():
@@ -137,6 +145,7 @@ async def get_or_generate_brand_plan(
             evidence=evidence,
             competitors=competitor_data,
             regulatory=regulatory,
+            primary_research=primary_research,
         )
 
     # persist serialized plan

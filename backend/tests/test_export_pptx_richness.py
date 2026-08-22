@@ -143,6 +143,26 @@ def test_kpi_and_milestone_tables_render_the_plans_own_rows():
     assert plan.monthly_action_plan[0].activity in texts
 
 
+def test_primary_research_slide_only_appears_when_data_exists():
+    from app.services.ai_orchestrator import generate_strategic_brand_plan, generate_commercial_assets
+    plan = generate_strategic_brand_plan(project_id="t", molecule_name="Empagliflozin", brand_name="Cardioflo")
+    assets = generate_commercial_assets(molecule_name="Empagliflozin", brand_name="Cardioflo")
+
+    buffer_without = export_service.generate_pitch_deck_pptx(plan, assets, primary_research=None)
+    texts_without = " ".join(_slide_texts(Presentation(io.BytesIO(buffer_without.getvalue()))))
+    assert "Primary Research: RCPA" not in texts_without
+
+    primary_research = {
+        "has_data": True, "rcpa_total": 40, "rcpa_aware_count": 28, "rcpa_aware_percent": 70.0,
+        "rcpa_active_count": 2, "rcpa_active_percent": 5.0, "hcp_total": 10,
+        "hcp_avg_cost_barrier_rating": 7.0,
+    }
+    buffer_with = export_service.generate_pitch_deck_pptx(plan, assets, primary_research=primary_research)
+    texts_with = " ".join(_slide_texts(Presentation(io.BytesIO(buffer_with.getvalue()))))
+    assert "Primary Research: RCPA" in texts_with
+    assert "28/40 (70.0%)" in texts_with
+
+
 def test_title_slide_carries_developer_attribution():
     from app.services.ai_orchestrator import generate_strategic_brand_plan, generate_commercial_assets
     plan = generate_strategic_brand_plan(project_id="t", molecule_name="Empagliflozin", brand_name="Cardioflo")

@@ -61,6 +61,46 @@ def _competitor_section_text(competitor_data: Optional[Dict[str, Any]]) -> tuple
     return "\n".join(lines), gap_text
 
 
+def _doctor_market_insights_text(primary_research: Optional[Dict[str, Any]]) -> str:
+    """Real HCP-survey and RCPA figures for the template, or the honest placeholder.
+
+    Only ever states counts and percentages computed from rows the team
+    itself entered via Module primary-research — never a plausible-sounding
+    estimate. Team-collected field data, not an independently verified
+    secondary source, so it is labeled as such rather than presented at the
+    same tier as regulatory or licensed market data.
+    """
+    if not primary_research or not primary_research.get("has_data"):
+        return "Insights are placeholders until validated by market research or advisory input."
+
+    lines = ["Team-collected primary research on file:"]
+    if primary_research.get("rcpa_total"):
+        lines.append(
+            f"- RCPA: {primary_research['rcpa_aware_count']}/{primary_research['rcpa_total']} "
+            f"pharmacies visited are aware of the molecule ({primary_research['rcpa_aware_percent']}%); "
+            f"{primary_research['rcpa_active_count']} are actively prescribing/dispensing it "
+            f"({primary_research['rcpa_active_percent']}%)."
+        )
+        if primary_research.get("rcpa_high_potential_count"):
+            lines.append(f"- {primary_research['rcpa_high_potential_count']} pharmacy visit(s) rated high potential.")
+    if primary_research.get("hcp_total"):
+        lines.append(f"- HCP survey: {primary_research['hcp_total']} respondent(s) on file.")
+        if primary_research.get("hcp_avg_cost_barrier_rating") is not None:
+            lines.append(
+                f"- Average cost-barrier rating: {primary_research['hcp_avg_cost_barrier_rating']}/10 "
+                f"(n={primary_research['hcp_cost_barrier_respondents']})."
+            )
+        if primary_research.get("hcp_avg_preference_rating") is not None:
+            lines.append(f"- Average molecule preference rating: {primary_research['hcp_avg_preference_rating']}/5.")
+        if primary_research.get("hcp_switch_intent_percent") is not None:
+            lines.append(
+                f"- {primary_research['hcp_switch_intent_count']}/{primary_research['hcp_switch_intent_respondents']} "
+                f"respondents indicated switch intent ({primary_research['hcp_switch_intent_percent']}%)."
+            )
+    lines.append("Directional field findings, not statistically confirmatory — validate before using in external claims.")
+    return "\n".join(lines)
+
+
 def generate_strategic_brand_plan(
     project_id: str,
     molecule_name: str,
@@ -69,6 +109,7 @@ def generate_strategic_brand_plan(
     indication: str = "Heart Failure & Chronic Kidney Disease in Type 2 Diabetes",
     target_geography: str = "Global",
     competitor_data: Optional[Dict[str, Any]] = None,
+    primary_research: Optional[Dict[str, Any]] = None,
 ) -> CompleteBrandPlan:
     """Create a draft brand plan scaffold.
 
@@ -79,9 +120,12 @@ def generate_strategic_brand_plan(
     `competitor_data` (from `generate_competitor_intelligence`) is optional and
     additive: when supplied, the competitive-defense section states the real
     brands, companies, and measured share already on file instead of a bare
-    placeholder — every other section is unaffected.
+    placeholder — every other section is unaffected. `primary_research` (from
+    `summarize_primary_research`) works the same way for the doctor/market
+    insights field.
     """
     competitor_markdown, competitor_gap_text = _competitor_section_text(competitor_data)
+    doctor_market_insights = _doctor_market_insights_text(primary_research)
     
     brand = brand_name or f"{molecule_name.title()} Brand"
     mol = molecule_name.title()
@@ -294,7 +338,7 @@ def generate_strategic_brand_plan(
         brand_objective=obj,
         therapy_area_opportunity=f"Opportunity sizing for {therapy_area} requires sourced epidemiology and access assumptions.",
         target_customer_and_patient_profile=f"Specialist and generalist segments should be validated for {indication} in {target_geography}.",
-        doctor_and_market_insights="Insights are placeholders until validated by market research or advisory input.",
+        doctor_and_market_insights=doctor_market_insights,
         competitor_gap_and_differentiation=competitor_gap_text,
         positioning_statement=f"Draft positioning for {brand}; final claims require MLR and legal approval.",
         brand_promise_and_rtb="Reasons to believe pending citation-level evidence mapping.",

@@ -18,6 +18,7 @@ from .api import (
     evidence,
     forecasting,
     molecules,
+    primary_research,
     projects,
     regulatory,
     reports,
@@ -123,6 +124,7 @@ app.include_router(drugs.router, dependencies=[Depends(require_access)])
 app.include_router(market.router, dependencies=[Depends(require_access)])
 app.include_router(auth.router, dependencies=[Depends(require_access)])
 app.include_router(copilot.router, dependencies=[Depends(require_access)])
+app.include_router(primary_research.router, dependencies=[Depends(require_access)])
 
 
 @app.get("/")

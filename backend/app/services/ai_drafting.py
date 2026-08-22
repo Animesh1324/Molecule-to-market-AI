@@ -119,6 +119,7 @@ def _format_grounding(
     evidence: Optional[List[Dict[str, Any]]],
     competitors: Optional[Dict[str, Any]] = None,
     regulatory: Optional[Dict[str, Any]] = None,
+    primary_research: Optional[Dict[str, Any]] = None,
 ) -> str:
     """Render only verified, app-fetched facts into the prompt."""
     lines = [
@@ -235,6 +236,28 @@ def _format_grounding(
             for point in (swot.get(key) or [])[:4]:
                 lines.append(f"- [{label}] {point}")
 
+    if primary_research and primary_research.get("has_data"):
+        lines += ["", "## Team-collected primary research on file (field data — cite, do not extrapolate beyond it)"]
+        if primary_research.get("rcpa_total"):
+            lines.append(
+                f"- RCPA: {primary_research['rcpa_aware_count']}/{primary_research['rcpa_total']} pharmacies "
+                f"visited are aware of the molecule ({primary_research['rcpa_aware_percent']}%); "
+                f"{primary_research['rcpa_active_count']} are actively prescribing/dispensing it "
+                f"({primary_research['rcpa_active_percent']}%)."
+            )
+        if primary_research.get("hcp_total"):
+            lines.append(f"- HCP survey: {primary_research['hcp_total']} respondent(s) on file.")
+            if primary_research.get("hcp_avg_cost_barrier_rating") is not None:
+                lines.append(f"- Average cost-barrier rating: {primary_research['hcp_avg_cost_barrier_rating']}/10.")
+            if primary_research.get("hcp_avg_preference_rating") is not None:
+                lines.append(f"- Average molecule preference rating: {primary_research['hcp_avg_preference_rating']}/5.")
+            if primary_research.get("hcp_switch_intent_percent") is not None:
+                lines.append(f"- Switch intent: {primary_research['hcp_switch_intent_percent']}% of respondents.")
+        lines.append(
+            "This is directional field data the team collected itself, not an independently verified "
+            "secondary source — treat it as real but not statistically confirmatory."
+        )
+
     lines += ["", "## Sections to draft"]
     for section in plan.sections:
         lines.append(f"- {section.section_id}: {section.section_title} [{section.section_category}]")
@@ -296,6 +319,7 @@ async def draft_brand_plan(
     evidence: Optional[List[Dict[str, Any]]] = None,
     competitors: Optional[Dict[str, Any]] = None,
     regulatory: Optional[Dict[str, Any]] = None,
+    primary_research: Optional[Dict[str, Any]] = None,
 ) -> CompleteBrandPlan:
     """Return `plan` with its narrative sections drafted by Claude.
 
@@ -309,7 +333,7 @@ async def draft_brand_plan(
         return CompleteBrandPlan(**plan_data)
 
     prompt = (
-        f"{_format_grounding(plan, molecule, evidence, competitors, regulatory)}\n\n"
+        f"{_format_grounding(plan, molecule, evidence, competitors, regulatory, primary_research)}\n\n"
         "Draft the strategy narrative for this brand plan. Return one entry in "
         "`sections` for every section listed above, keyed by its section_id. "
         "Follow every rule in your instructions — this draft goes to MLR review, "

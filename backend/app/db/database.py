@@ -80,6 +80,7 @@ def init_db():
     from . import user_models  # noqa: F401
     from . import response_cache_models  # noqa: F401
     from . import orange_book_models  # noqa: F401
+    from . import primary_research_models  # noqa: F401
 
     Base.metadata.create_all(bind=engine)
     session = SessionLocal()

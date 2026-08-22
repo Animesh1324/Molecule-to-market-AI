@@ -119,6 +119,7 @@ def generate_pitch_deck_pptx(
     regulatory: Optional[Dict[str, Any]] = None,
     molecule: Optional[Dict[str, Any]] = None,
     forecast: Optional[MarketForecast] = None,
+    primary_research: Optional[Dict[str, Any]] = None,
 ) -> io.BytesIO:
     """Generates an executive PowerPoint pitch deck (.pptx), data-dense where real data exists.
 
@@ -397,6 +398,39 @@ def generate_pitch_deck_pptx(
         ["Strengths", "Weaknesses", "Opportunities", "Threats"], swot_rows,
         empty_note="No SWOT analysis on file yet for this molecule — check Module 6.",
     )
+
+    # Slide: Primary Research (RCPA + HCP Survey) — only when the team has entered any
+    if primary_research and primary_research.get("has_data"):
+        pr_rows: List[List[str]] = []
+        if primary_research.get("rcpa_total"):
+            pr_rows.append([
+                "RCPA — pharmacy awareness",
+                f"{primary_research['rcpa_aware_count']}/{primary_research['rcpa_total']} ({primary_research['rcpa_aware_percent']}%)",
+            ])
+            pr_rows.append([
+                "RCPA — active prescribing/dispensing",
+                f"{primary_research['rcpa_active_count']}/{primary_research['rcpa_total']} ({primary_research['rcpa_active_percent']}%)",
+            ])
+            if primary_research.get("rcpa_high_potential_count"):
+                pr_rows.append(["RCPA — high-potential outlets", str(primary_research["rcpa_high_potential_count"])])
+        if primary_research.get("hcp_total"):
+            pr_rows.append(["HCP survey respondents", str(primary_research["hcp_total"])])
+            if primary_research.get("hcp_avg_cost_barrier_rating") is not None:
+                pr_rows.append(["Average cost-barrier rating", f"{primary_research['hcp_avg_cost_barrier_rating']}/10"])
+            if primary_research.get("hcp_avg_preference_rating") is not None:
+                pr_rows.append(["Average molecule preference rating", f"{primary_research['hcp_avg_preference_rating']}/5"])
+            if primary_research.get("hcp_avg_efficacy_rating") is not None:
+                pr_rows.append(["Average perceived efficacy rating", f"{primary_research['hcp_avg_efficacy_rating']}/5"])
+            if primary_research.get("hcp_switch_intent_percent") is not None:
+                pr_rows.append([
+                    "Switch intent",
+                    f"{primary_research['hcp_switch_intent_count']}/{primary_research['hcp_switch_intent_respondents']} ({primary_research['hcp_switch_intent_percent']}%)",
+                ])
+        add_table_slide(
+            "Primary Research: RCPA & HCP Survey",
+            "Team-collected field data — directional, not statistically confirmatory",
+            ["Metric", "Value"], pr_rows,
+        )
 
     # Slide 7: Strategic Positioning
     add_standard_slide(

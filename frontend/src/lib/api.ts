@@ -13,6 +13,9 @@ import {
   VisualAidBrief,
   CoPilotTurn,
   CoPilotResponse,
+  RCPAEntry,
+  HCPQuestionnaire,
+  PrimaryResearchSummary,
   MLRAuditEntry,
   MoleculeLifecycle,
   UploadedFile,
@@ -249,6 +252,68 @@ export async function askCoPilot(params: {
     body: JSON.stringify(params),
   });
   if (!res.ok) throw await apiError(res, 'AI Co-Pilot request failed');
+  return res.json();
+}
+
+export async function fetchRCPAEntries(projectId: string): Promise<RCPAEntry[]> {
+  const res = await fetch(`${API_BASE}/api/primary-research/rcpa?project_id=${encodeURIComponent(projectId)}`, { headers: authHeaders() });
+  if (!res.ok) throw await apiError(res, 'Failed to fetch RCPA entries');
+  return res.json();
+}
+
+export async function addRCPAEntry(data: {
+  project_id: string; pharmacy_name: string; signal_note: string; recorded_by: string;
+  location?: string; molecule_awareness?: boolean; active_prescribing?: boolean;
+  rx_frequency_note?: string; potential_rating?: string; action_note?: string;
+}): Promise<RCPAEntry> {
+  const res = await fetch(`${API_BASE}/api/primary-research/rcpa`, {
+    method: 'POST',
+    headers: authHeaders({ 'Content-Type': 'application/json' }),
+    body: JSON.stringify(data),
+  });
+  if (!res.ok) throw await apiError(res, 'Failed to add RCPA entry');
+  return res.json();
+}
+
+export async function deleteRCPAEntry(entryId: string): Promise<void> {
+  const res = await fetch(`${API_BASE}/api/primary-research/rcpa/${encodeURIComponent(entryId)}`, {
+    method: 'DELETE',
+    headers: authHeaders(),
+  });
+  if (!res.ok) throw await apiError(res, 'Failed to delete RCPA entry');
+}
+
+export async function fetchHCPQuestionnaires(projectId: string): Promise<HCPQuestionnaire[]> {
+  const res = await fetch(`${API_BASE}/api/primary-research/questionnaire?project_id=${encodeURIComponent(projectId)}`, { headers: authHeaders() });
+  if (!res.ok) throw await apiError(res, 'Failed to fetch HCP questionnaires');
+  return res.json();
+}
+
+export async function addHCPQuestionnaire(data: {
+  project_id: string; specialty: string; recorded_by: string;
+  respondent_code?: string; cost_barrier_rating?: number; molecule_preference_rating?: number;
+  efficacy_rating?: number; switch_intent?: boolean; key_quote?: string;
+}): Promise<HCPQuestionnaire> {
+  const res = await fetch(`${API_BASE}/api/primary-research/questionnaire`, {
+    method: 'POST',
+    headers: authHeaders({ 'Content-Type': 'application/json' }),
+    body: JSON.stringify(data),
+  });
+  if (!res.ok) throw await apiError(res, 'Failed to add HCP questionnaire');
+  return res.json();
+}
+
+export async function deleteHCPQuestionnaire(entryId: string): Promise<void> {
+  const res = await fetch(`${API_BASE}/api/primary-research/questionnaire/${encodeURIComponent(entryId)}`, {
+    method: 'DELETE',
+    headers: authHeaders(),
+  });
+  if (!res.ok) throw await apiError(res, 'Failed to delete HCP questionnaire');
+}
+
+export async function fetchPrimaryResearchSummary(projectId: string): Promise<PrimaryResearchSummary> {
+  const res = await fetch(`${API_BASE}/api/primary-research/summary?project_id=${encodeURIComponent(projectId)}`, { headers: authHeaders() });
+  if (!res.ok) throw await apiError(res, 'Failed to fetch primary research summary');
   return res.json();
 }
 

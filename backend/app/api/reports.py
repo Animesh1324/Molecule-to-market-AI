@@ -12,6 +12,7 @@ from ..services.competitor_service import generate_competitor_intelligence
 from ..services.forecast_service import calculate_market_forecast
 from ..services.pubchem_service import fetch_molecule_intelligence
 from ..services.regulatory_service import fetch_regulatory_intelligence
+from ..services.primary_research_service import summarize_primary_research
 from ..services.export_service import generate_brand_plan_docx, generate_pitch_deck_pptx, generate_financial_model_xlsx
 from ..db import database as db
 
@@ -182,6 +183,10 @@ async def export_pitch_deck_pptx(
         competitor_data = competitor_result.model_dump() if hasattr(competitor_result, "model_dump") else competitor_result.dict()
     except Exception:
         pass
+    try:
+        primary_research = summarize_primary_research(project_id) if project_id else None
+    except Exception:
+        primary_research = None
     # Only forecast when at least one assumption was supplied — an export
     # with no forecast context on screen should say so, not silently invent
     # a forecast from default epidemiology assumptions the user never set.
@@ -204,6 +209,7 @@ async def export_pitch_deck_pptx(
     buffer = generate_pitch_deck_pptx(
         plan, assets,
         competitor_data=competitor_data, regulatory=regulatory, molecule=molecule_profile, forecast=forecast,
+        primary_research=primary_research,
     )
 
     return Response(

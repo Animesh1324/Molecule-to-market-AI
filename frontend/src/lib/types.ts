@@ -447,6 +447,54 @@ export interface PatientEducationLeaflet {
   lifestyle_and_diet_tips: string[];
 }
 
+export interface RCPAEntry {
+  id: string;
+  project_id: string;
+  pharmacy_name: string;
+  location: string | null;
+  molecule_awareness: boolean;
+  active_prescribing: boolean;
+  rx_frequency_note: string | null;
+  potential_rating: string | null;
+  signal_note: string;
+  action_note: string | null;
+  recorded_by: string;
+  recorded_at: string;
+}
+
+export interface HCPQuestionnaire {
+  id: string;
+  project_id: string;
+  specialty: string;
+  respondent_code: string | null;
+  cost_barrier_rating: number | null;
+  molecule_preference_rating: number | null;
+  efficacy_rating: number | null;
+  switch_intent: boolean | null;
+  key_quote: string | null;
+  recorded_by: string;
+  recorded_at: string;
+}
+
+export interface PrimaryResearchSummary {
+  has_data: boolean;
+  rcpa_total: number;
+  hcp_total: number;
+  rcpa_aware_count?: number;
+  rcpa_aware_percent?: number;
+  rcpa_active_count?: number;
+  rcpa_active_percent?: number;
+  rcpa_high_potential_count?: number;
+  hcp_avg_cost_barrier_rating?: number;
+  hcp_cost_barrier_respondents?: number;
+  hcp_avg_preference_rating?: number;
+  hcp_avg_efficacy_rating?: number;
+  hcp_switch_intent_count?: number;
+  hcp_switch_intent_percent?: number;
+  hcp_switch_intent_respondents?: number;
+  hcp_specialty_breakdown?: Record<string, number>;
+}
+
 export interface CoPilotTurn {
   sender: 'user' | 'ai';
   text: string;
