@@ -298,3 +298,115 @@ def test_network_failure_falls_back_to_cache_rather_than_emptying(fake_ncbi, mon
     monkeypatch.setattr(P.httpx, "AsyncClient", lambda **kw: Broken())
     page = asyncio.run(P.get_evidence_page("Testolol", limit=5, refresh=True))
     assert len(page["papers"]) > 0
+
+
+# --------------------------------------------------------------------------
+# _store round-trip cost
+#
+# The original implementation ran session.get(PubMedPaperORM, pmid) once per
+# record inside the write loop — cheap on local SQLite, where a round trip is
+# free, but a real network hop per paper against a remote database. A batch of
+# 2000 papers meant 2000 sequential SELECTs before any write happened. The
+# fix partitions new-vs-existing with one upfront IN-query and writes each
+# group with a single bulk_insert_mappings/bulk_update_mappings call. These
+# tests assert the SELECT count directly so a future edit that reintroduces
+# a per-row lookup fails loudly instead of only showing up as latency in
+# production.
+# --------------------------------------------------------------------------
+
+def _count_selects(engine, fn):
+    """Run fn() and return how many SELECT statements it issued."""
+    from sqlalchemy import event
+
+    count = 0
+
+    def before_cursor_execute(conn, cursor, statement, parameters, context, executemany):
+        nonlocal count
+        if statement.strip().upper().startswith("SELECT"):
+            count += 1
+
+    event.listen(engine, "before_cursor_execute", before_cursor_execute)
+    try:
+        fn()
+    finally:
+        event.remove(engine, "before_cursor_execute", before_cursor_execute)
+    return count
+
+
+def test_store_select_count_does_not_scale_with_batch_size(fake_ncbi):
+    """A 50-paper batch must not cost 10x the SELECTs of a 5-paper one.
+
+    fetch_pubmed_corpus also does one constant-cost lookup of its own query
+    state (_save_query), so the floor is a small fixed number, not zero or one
+    — what matters is that it stays FIXED as record count grows, rather than
+    growing with it the way a per-row session.get() would.
+
+    The fake client's PMIDs start at 1000 on every call, so a larger corpus
+    fetched second would legitimately collide with the smaller one's IDs and
+    hit the update branch instead of the insert one. The table is cleared
+    between the two fetches so both are genuinely pure inserts — the
+    comparison this test makes.
+    """
+    import asyncio
+    from app.db.database import engine
+
+    fake_ncbi(5)
+    small_selects = _count_selects(
+        engine, lambda: asyncio.run(P.fetch_pubmed_corpus("Testolol", max_records=5)))
+
+    session = SessionLocal()
+    try:
+        session.query(PubMedPaperORM).delete()
+        session.commit()
+    finally:
+        session.close()
+
+    fake_ncbi(50)
+    large_selects = _count_selects(
+        engine, lambda: asyncio.run(P.fetch_pubmed_corpus("Testolol2", max_records=50)))
+
+    assert small_selects == large_selects
+
+
+def test_reingesting_the_same_pmids_updates_without_a_select_per_row(fake_ncbi):
+    """Re-fetching an already-cached corpus exercises the update branch.
+
+    An all-updates pass costs one more SELECT than an all-inserts pass (the
+    existing-abstracts lookup), but that extra cost must stay fixed as the
+    number of already-cached PMIDs grows — never one lookup per row.
+    """
+    import asyncio
+    from app.db.database import engine
+
+    fake_ncbi(20)
+    asyncio.run(P.fetch_pubmed_corpus("Testolol3", max_records=20))
+    # Every one of these 20 PMIDs now exists, so this refetch is pure update.
+    small_update_selects = _count_selects(
+        engine, lambda: asyncio.run(P.fetch_pubmed_corpus("Testolol3", max_records=20)))
+
+    fake_ncbi(200)
+    asyncio.run(P.fetch_pubmed_corpus("Testolol4", max_records=200))
+    # 200 already-cached PMIDs — ten times the previous batch.
+    large_update_selects = _count_selects(
+        engine, lambda: asyncio.run(P.fetch_pubmed_corpus("Testolol4", max_records=200)))
+
+    assert small_update_selects == large_update_selects
+
+
+def test_mixed_new_and_existing_pmids_are_both_written_correctly(fake_ncbi):
+    """One _store() call spanning new and already-cached PMIDs upserts both."""
+    import asyncio
+
+    fake_ncbi(10)
+    asyncio.run(P.fetch_pubmed_corpus("Testolol4", max_records=10))
+
+    # Grow the corpus: the first 10 PMIDs are now "existing", the next 10 are new.
+    fake_ncbi(20)
+    asyncio.run(P.fetch_pubmed_corpus("Testolol4", max_records=20))
+
+    session = SessionLocal()
+    try:
+        stored = {row.pmid for row in session.query(PubMedPaperORM.pmid).all()}
+    finally:
+        session.close()
+    assert len(stored) == 20

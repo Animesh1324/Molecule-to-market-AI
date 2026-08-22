@@ -449,21 +449,33 @@ def _paper_from_orm(row: PubMedPaperORM, molecule: str) -> ResearchPaper:
 
 
 def _store(records: List[Dict[str, Any]], abstracts: Dict[str, str]) -> List[str]:
-    """Upsert summary records, returning the PMIDs in the order given."""
+    """Upsert summary records, returning the PMIDs in the order given.
+
+    Existing rows are found with one batch SELECT before the loop, not a
+    session.get() per PMID inside it. A 2000-paper corpus fetch used to run
+    2000 individual primary-key lookups — cheap on local SQLite, where a round
+    trip is free, but each one a real network hop against a remote database.
+    One IN-query partitions new from existing; bulk_insert_mappings and
+    bulk_update_mappings then write each group in a single statement batch,
+    so the fix does not need a Postgres-specific upsert to get the benefit.
+    """
     now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     session = SessionLocal()
     ordered: List[str] = []
     try:
+        parsed: List[Dict[str, Any]] = []
+        pmids: List[str] = []
         for item in records:
             pmid = str(item.get("uid") or "").strip()
             if not pmid:
                 continue
             ordered.append(pmid)
+            pmids.append(pmid)
             pub_types = [str(t) for t in (item.get("pubtype") or [])]
             study_type, evidence_level = _classify(pub_types)
             ids = _extract_ids(item)
-            row = session.get(PubMedPaperORM, pmid)
-            values = dict(
+            parsed.append(dict(
+                pmid=pmid,
                 pmcid=ids["pmcid"],
                 doi=ids["doi"],
                 title=(item.get("title") or "Title not stated in PubMed record").strip(),
@@ -476,16 +488,36 @@ def _store(records: List[Dict[str, Any]], abstracts: Dict[str, str]) -> List[str
                 study_type=study_type,
                 evidence_level=evidence_level,
                 fetched_at=now,
-            )
+            ))
+
+        existing_ids = {
+            row.pmid for row in session.query(PubMedPaperORM.pmid)
+            .filter(PubMedPaperORM.pmid.in_(pmids)).all()
+        } if pmids else set()
+        # Never overwrite a stored abstract with nothing: an update carries the
+        # new abstract only when one was actually fetched for this PMID.
+        existing_abstracts = {
+            row.pmid: row.abstract for row in session.query(
+                PubMedPaperORM.pmid, PubMedPaperORM.abstract)
+            .filter(PubMedPaperORM.pmid.in_(existing_ids)).all()
+        } if existing_ids else {}
+
+        to_insert: List[Dict[str, Any]] = []
+        to_update: List[Dict[str, Any]] = []
+        for values in parsed:
+            pmid = values["pmid"]
             abstract = abstracts.get(pmid)
-            if row is None:
-                session.add(PubMedPaperORM(pmid=pmid, abstract=abstract, **values))
+            if pmid in existing_ids:
+                values["abstract"] = abstract or existing_abstracts.get(pmid)
+                to_update.append(values)
             else:
-                for field, value in values.items():
-                    setattr(row, field, value)
-                # Never overwrite a stored abstract with nothing.
-                if abstract:
-                    row.abstract = abstract
+                values["abstract"] = abstract
+                to_insert.append(values)
+
+        if to_insert:
+            session.bulk_insert_mappings(PubMedPaperORM, to_insert)
+        if to_update:
+            session.bulk_update_mappings(PubMedPaperORM, to_update)
         session.commit()
     except Exception:
         session.rollback()
