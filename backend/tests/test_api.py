@@ -115,6 +115,49 @@ def test_export_xlsx():
     assert len(response.content) > 1000
 
 
+def test_export_pptx_carries_a_draft_disclaimer_on_every_slide():
+    """The pitch deck is the artifact most likely to be pulled out and shown or
+    forwarded on its own. A disclaimer on only one slide would leave the rest
+    silently unmarked the moment that slide is cropped, skipped, or deleted —
+    so every slide must carry it independently.
+    """
+    import io
+    from pptx import Presentation
+
+    response = client.get("/api/reports/export/pptx?molecule=Empagliflozin&brand_name=Cardioflo")
+    assert response.status_code == 200
+    presentation = Presentation(io.BytesIO(response.content))
+    assert len(presentation.slides) > 0
+    for slide in presentation.slides:
+        texts = [shape.text_frame.text for shape in slide.shapes if shape.has_text_frame]
+        assert any("Not MLR Approved" in text for text in texts), (
+            "a slide is missing the draft disclaimer footer")
+
+
+def test_export_xlsx_carries_a_draft_disclaimer_and_correct_row_layout():
+    """The workbook is as forwardable as the deck and often outlives it, so it
+    needs the same disclaimer. Also pins the funnel-section and scenario-table
+    row positions: inserting the disclaimer row shifts every row below it, and
+    a future edit that adds or removes a header row must not silently misalign
+    the funnel labels against their values.
+    """
+    import io
+    from openpyxl import load_workbook
+
+    response = client.get("/api/reports/export/xlsx?brand_name=Cardioflo")
+    assert response.status_code == 200
+    workbook = load_workbook(io.BytesIO(response.content))
+    sheet = workbook.active
+
+    assert "Not MLR Approved" in sheet["A2"].value
+    assert "MOLECULE TO MARKET AI" in sheet["A1"].value
+    assert sheet["A4"].value == "EPIDEMIOLOGICAL PATIENT FUNNEL PARAMETERS"
+    assert sheet["A5"].value == "Total Target Population"
+    assert isinstance(sheet["B5"].value, (int, float))
+    assert sheet["A17"].value == "Scenario"
+    assert sheet["A18"].value == "Conservative"
+
+
 # --- Regression tests for fixed defects -------------------------------------
 
 @pytest.mark.parametrize("param,value", [

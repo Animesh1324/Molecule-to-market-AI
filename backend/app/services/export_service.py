@@ -118,6 +118,27 @@ def generate_pitch_deck_pptx(plan: CompleteBrandPlan, assets: CreativeCommercial
     prs.slide_height = PptxInches(7.5)
     blank_layout = prs.slide_layouts[6]
     
+    def add_mlr_footer(slide) -> None:
+        """Draft status on every slide.
+
+        A pitch deck is the artifact most likely to be pulled out of the app
+        and presented, forwarded, or left in an inbox on its own — unlike the
+        DOCX, which carries its disclaimer as running text a reader has to
+        scroll past, a single deleted or skipped slide here would leave every
+        other slide silently unmarked. Repeating it as a footer means no slide
+        can be extracted without carrying the warning.
+        """
+        footer_box = slide.shapes.add_textbox(
+            PptxInches(0.8), PptxInches(7.05), PptxInches(11.7), PptxInches(0.35))
+        f_tf = footer_box.text_frame
+        f_tf.word_wrap = False
+        p = f_tf.paragraphs[0]
+        p.text = ("DRAFT — Not MLR Approved — Internal Use Only. "
+                 "Clinical, safety, and efficacy statements require source verification before use.")
+        p.font.size = PptxPt(9)
+        p.font.italic = True
+        p.font.color.rgb = PptxRGBColor(148, 163, 184)
+
     def add_standard_slide(title_text: str, subtitle_text: str, bullets: list):
         slide = prs.slides.add_slide(blank_layout)
         
@@ -147,7 +168,8 @@ def generate_pitch_deck_pptx(plan: CompleteBrandPlan, assets: CreativeCommercial
             p.font.size = PptxPt(18)
             p.space_after = PptxPt(14)
             p.font.color.rgb = PptxRGBColor(30, 41, 59)
-            
+        
+        add_mlr_footer(slide)
         return slide
     
     # Slide 1: Title Slide
@@ -165,6 +187,7 @@ def generate_pitch_deck_pptx(plan: CompleteBrandPlan, assets: CreativeCommercial
     s1_sub.font.size = PptxPt(18)
     s1_sub.font.color.rgb = PptxRGBColor(71, 85, 105)
     s1_sub.space_before = PptxPt(20)
+    add_mlr_footer(s1)
     
     # Slide 2: Executive Charter
     add_standard_slide(
@@ -237,14 +260,24 @@ def generate_financial_model_xlsx(forecast: MarketForecast, brand_name: str) -> 
     curr_format = "$#,##0"
     
     ws.merge_cells("A1:G1")
-    ws["A1"] = f"PHARMA BRANDPLAN AI — FINANCIAL FORECAST MODEL ({brand_name.upper()})"
+    ws["A1"] = f"MOLECULE TO MARKET AI — FINANCIAL FORECAST MODEL ({brand_name.upper()})"
     ws["A1"].font = header_font
     ws["A1"].fill = header_fill
     ws["A1"].alignment = Alignment(horizontal="center", vertical="center")
-    
+    ws.row_dimensions[1].height = 22
+
+    # Row 2: draft status. The DOCX and PPTX both carry this; a spreadsheet is
+    # just as forwardable and often outlives the deck it was built alongside,
+    # so the same statement belongs on the one sheet this workbook has.
+    ws.merge_cells("A2:G2")
+    ws["A2"] = ("DRAFT — Not MLR Approved — Internal planning use only. "
+               "Pricing, forecast, and CAGR assumptions require sourced verification before use.")
+    ws["A2"].font = Font(name="Calibri", size=9, italic=True, color="94A3B8")
+    ws["A2"].alignment = Alignment(horizontal="center")
+
     # Patient Funnel Section
-    ws["A3"] = "EPIDEMIOLOGICAL PATIENT FUNNEL PARAMETERS"
-    ws["A3"].font = bold_font
+    ws["A4"] = "EPIDEMIOLOGICAL PATIENT FUNNEL PARAMETERS"
+    ws["A4"].font = bold_font
     
     funnel_data = [
         ("Total Target Population", forecast.total_population, "#,##0"),
@@ -258,14 +291,14 @@ def generate_financial_model_xlsx(forecast: MarketForecast, brand_name: str) -> 
         ("Total Available Treated Market Size (USD)", forecast.current_therapy_market_size_usd, "$#,##0")
     ]
     
-    for row_idx, (label, val, fmt) in enumerate(funnel_data, start=4):
+    for row_idx, (label, val, fmt) in enumerate(funnel_data, start=5):
         ws.cell(row=row_idx, column=1, value=label)
         c = ws.cell(row=row_idx, column=2, value=val)
         c.number_format = fmt
         c.alignment = Alignment(horizontal="right")
         
     # Scenario Comparison Section
-    start_row = 15
+    start_row = 16
     ws.cell(row=start_row, column=1, value="5-YEAR REVENUE SCENARIO PROJECTIONS (USD)").font = bold_font
     
     headers = ["Scenario", "Year 1", "Year 2", "Year 3", "Year 4", "Year 5", "5-Yr CAGR"]
