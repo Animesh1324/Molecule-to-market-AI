@@ -114,8 +114,32 @@ def _first(values: Optional[List[str]], limit: int = 900) -> str:
     return ""
 
 
+def _is_combination_generic_name(name: str) -> bool:
+    """Whether an openFDA generic_name string names more than one ingredient.
+
+    FDA writes combination generic names as "X AND Y" or "X, Y, Z" — verified
+    against live label data: 'EMPAGLIFLOZIN AND METFORMIN HYDROCHLORIDE',
+    'EMPAGLIFLOZIN, LINAGLIPTIN, METFORMIN HYDROCHLORIDE'. A single-ingredient
+    name never contains either separator.
+    """
+    text = (name or "").upper()
+    return " AND " in text or "," in text
+
+
 async def _fetch_label(client: httpx.AsyncClient, molecule: str) -> Optional[Dict[str, Any]]:
-    """Most recent SPL naming this molecule as an active ingredient.
+    """Most recent single-ingredient SPL naming this molecule.
+
+    A phrase search on openfda.generic_name matches a fixed-dose combination's
+    label too — "EMPAGLIFLOZIN"[Title/Abstract]-style quoting does not exclude
+    'EMPAGLIFLOZIN AND METFORMIN HYDROCHLORIDE', and sorted by recency a combo's
+    label can outrank the plain molecule's own. Taking results[0] unconditionally
+    meant a co-formulated product's boxed warnings, contraindications, and
+    mechanism text could be attributed to the single molecule — verified live:
+    querying "Empagliflozin" returned combination labels in the top 10 by
+    effective_time. Fetching a wider candidate set and filtering to
+    single-ingredient names before picking the most recent one fixes this; a
+    combination label is used only when truly no single-ingredient label exists,
+    which is real for a molecule marketed solely as part of a fixed-dose product.
 
     Generic-name search first: it matches the molecule regardless of which brand
     or labeler published the SPL. Substance name is the fallback for biologics,
@@ -124,12 +148,22 @@ async def _fetch_label(client: httpx.AsyncClient, molecule: str) -> Optional[Dic
     for field in ("openfda.generic_name", "openfda.substance_name"):
         payload = await _get(client, LABEL_URL, {
             "search": f'{field}:"{molecule}"',
-            "limit": 1,
+            "limit": 20,
             "sort": "effective_time:desc",
         })
         results = (payload or {}).get("results") or []
-        if results:
-            return results[0]
+        if not results:
+            continue
+
+        def generic_names(label: Dict[str, Any]) -> List[str]:
+            return list((label.get("openfda") or {}).get(
+                "generic_name" if field == "openfda.generic_name" else "substance_name") or [])
+
+        single_ingredient = [
+            r for r in results
+            if not any(_is_combination_generic_name(n) for n in generic_names(r))
+        ]
+        return (single_ingredient or results)[0]
     return None
 
 
@@ -193,6 +227,26 @@ def _innovator(applications: List[Dict[str, Any]], molecule: str) -> tuple:
     return None, None
 
 
+def _is_single_ingredient_application(application: Dict[str, Any]) -> bool:
+    """Whether at least one product under this application is the molecule
+    alone, rather than every product being a fixed-dose combination.
+
+    Same check `_innovator` already applies per-application when picking a
+    brand name, reused here to scope the aggregate counts (application total,
+    approval year, generic-entry status) to applications for the plain
+    molecule. Without it, drugsfda.json's `products.active_ingredients.name`
+    search matches every fixed-dose combination too — verified live: searching
+    "Empagliflozin" returned 45 combination-product rows (Glyxambi,
+    Synjardy) alongside the molecule's own 27 applications, which would
+    inflate the application count and let an unrelated combination's approval
+    date or ANDA status stand in for the molecule's own.
+    """
+    return any(
+        len(p.get("active_ingredients") or []) == 1
+        for p in application.get("products") or []
+    )
+
+
 def _market_status(applications: List[Dict[str, Any]]) -> str:
     """Whether the molecule is single-source or genericised in the US."""
     prefixes = {(a.get("application_number") or "")[:3].upper() for a in applications}
@@ -208,17 +262,28 @@ def _market_status(applications: List[Dict[str, Any]]) -> str:
 async def fetch_us_fda_profile(molecule: str) -> Optional[Dict[str, Any]]:
     """Regulatory position of a molecule with the US FDA, or None if unlisted."""
     async with httpx.AsyncClient(timeout=TIMEOUT) as client:
-        label, applications = await asyncio.gather(
+        label, all_applications = await asyncio.gather(
             _fetch_label(client, molecule),
             _fetch_applications(client, molecule),
         )
 
-    if not label and not applications:
+    if not label and not all_applications:
         return None
+
+    # Scoped to applications for the plain molecule. `_innovator` already
+    # reasons about single-ingredient products internally, so it still takes
+    # the unfiltered list — everything else here (count, approval year,
+    # generic-entry status, application numbers) reads the molecule's own
+    # regulatory position, not a fixed-dose combination's.
+    applications: List[Dict[str, Any]] = []
+    combination_applications: List[Dict[str, Any]] = []
+    for application in all_applications:
+        target = applications if _is_single_ingredient_application(application) else combination_applications
+        target.append(application)
 
     label = label or {}
     openfda = label.get("openfda") or {}
-    brand, sponsor = _innovator(applications, molecule)
+    brand, sponsor = _innovator(all_applications, molecule)
     if not brand:
         brand = (openfda.get("brand_name") or [None])[0]
 
@@ -252,6 +317,7 @@ async def fetch_us_fda_profile(molecule: str) -> Optional[Dict[str, Any]]:
         "info": info,
         "sponsor": sponsor,
         "application_count": len(applications),
+        "combination_application_count": len(combination_applications),
         "market_status": _market_status(applications),
         "manufacturers": list(openfda.get("manufacturer_name") or [])[:5],
         "route": list(openfda.get("route") or [])[:4],
@@ -303,36 +369,73 @@ def _match(pattern: re.Pattern, text: str) -> str:
     return next((g for g in found.groups() if g), "").strip()
 
 
+async def _fetch_ndc_listings(client: httpx.AsyncClient, molecule: str) -> List[Dict[str, Any]]:
+    """Raw NDC directory records for a molecule, single query shared by both
+    class and dosage-form lookups below.
+    """
+    payload = await _get(client, NDC_URL, {
+        "search": f'active_ingredients.name:"{molecule}"',
+        "limit": 100,
+    })
+    return (payload or {}).get("results") or []
+
+
+def _single_ingredient_listings(records: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    """NDC records naming exactly one active ingredient.
+
+    A record matched the search because the molecule is one of its ingredients,
+    so `len(active_ingredients) == 1` means the molecule is the ONLY one — a
+    plain product, not a fixed-dose combination.
+    """
+    return [r for r in records if len(r.get("active_ingredients") or []) == 1]
+
+
 async def _fetch_pharm_class(client: httpx.AsyncClient, molecule: str) -> List[str]:
-    """Established pharmacologic class, from the NDC directory.
+    """Established pharmacologic class, from single-ingredient NDC listings.
 
     Read from NDC rather than the label because the label's `pharm_class_epc`
     annotation is present on some SPLs and absent from others — pantoprazole's
     most recent label carries none, so a label-first lookup returned nothing for
     a molecule whose class is perfectly well known. NDC lists it per product.
+
+    This previously used NDC's `count=pharm_class.exact` facet, which aggregates
+    the field across every matching listing — combinations included. Verified
+    live: querying "Empagliflozin" returned "Biguanide [EPC]" (metformin's
+    class, from the empagliflozin+metformin combination) and "Dipeptidyl
+    Peptidase 4 Inhibitor [EPC]" (linagliptin's, from empagliflozin+linagliptin)
+    ranked ahead of empagliflozin's own class in the returned term list, with no
+    way to tell which record a given term came from at the facet level. Fetching
+    raw records and aggregating only from single-ingredient ones isolates the
+    molecule's own class — confirmed empty of both foreign classes afterward.
     """
-    payload = await _get(client, NDC_URL, {
-        "search": f'active_ingredients.name:"{molecule}"',
-        "count": "pharm_class.exact",
-    })
-    classes = [str(r.get("term")) for r in (payload or {}).get("results", []) if r.get("term")]
+    records = _single_ingredient_listings(await _fetch_ndc_listings(client, molecule))
+    classes: List[str] = []
+    for record in records:
+        classes.extend(record.get("pharm_class") or [])
     # EPC is the established class; MoA and CS are secondary descriptors.
-    epc = [c for c in classes if c.endswith("[EPC]")]
-    return (epc or classes)[:3]
+    epc = sorted({c for c in classes if c.endswith("[EPC]")})
+    return (epc or sorted(set(classes)))[:3]
 
 
 async def _fetch_dosage_forms(client: httpx.AsyncClient, molecule: str) -> List[str]:
-    """Marketed dosage forms, from the NDC directory rather than the label.
+    """Marketed dosage forms of the plain molecule, from single-ingredient
+    NDC listings.
 
     `dosage_form` is an NDC listing field; it does not exist on the label
-    endpoint, which is why reading it off the label returned nothing.
+    endpoint, which is why reading it off the label returned nothing. Scoped to
+    single-ingredient listings for the same reason as pharm_class: an injectable
+    fixed-dose combination should not report itself as a form the plain
+    molecule is marketed in.
     """
-    payload = await _get(client, NDC_URL, {
-        "search": f'active_ingredients.name:"{molecule}"',
-        "count": "dosage_form.exact",
-    })
-    return [str(r.get("term")).title() for r in (payload or {}).get("results", [])[:8]
-            if r.get("term")]
+    records = _single_ingredient_listings(await _fetch_ndc_listings(client, molecule))
+    forms: List[str] = []
+    seen = set()
+    for record in records:
+        form = record.get("dosage_form")
+        if form and form not in seen:
+            seen.add(form)
+            forms.append(str(form).title())
+    return forms[:8]
 
 
 async def fetch_molecule_clinical_profile(molecule: str) -> Optional[Dict[str, Any]]:
