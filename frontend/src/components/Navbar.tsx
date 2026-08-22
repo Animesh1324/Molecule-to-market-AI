@@ -1,6 +1,7 @@
 import React from 'react';
 import Link from 'next/link';
 import ThemeToggle from './ThemeToggle';
+import CurrencySwitcher from './CurrencySwitcher';
 import AccessTokenGate from './AccessTokenGate';
 import { Activity, Layers, FileText, BarChart3, ShieldCheck, Sparkles, FolderKanban } from 'lucide-react';
 
@@ -56,6 +57,8 @@ export default function Navbar({ currentProjectId, projectTitle, moleculeName }:
           </Link>
 
           <div className="hidden sm:block h-4 w-px bg-slate-200 dark:bg-slate-800"></div>
+
+          <CurrencySwitcher />
 
           <div className="flex items-center space-x-2 bg-slate-200 dark:bg-slate-800/80 px-2 sm:px-3 py-1.5 rounded-lg border border-slate-300 dark:border-slate-700/60 text-xs">
             <AccessTokenGate />

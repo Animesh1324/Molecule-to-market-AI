@@ -145,6 +145,10 @@ def _profile_from_manual(index: int, row: Dict[str, Any]) -> CompetitorProfile:
         source_note=row.get("source_note"),
         added_by=row.get("added_by"),
         added_at=row.get("added_at"),
+        mrp=row.get("mrp"),
+        ptr=row.get("ptr"),
+        pts=row.get("pts"),
+        price_unit=row.get("price_unit"),
     )
 
 

@@ -819,13 +819,30 @@ def add_manual_competitor(
     value_estimate: Optional[float] = None,
     value_unit: Optional[str] = None,
     value_basis: Optional[str] = None,
+    mrp: Optional[float] = None,
+    ptr: Optional[float] = None,
+    pts: Optional[float] = None,
+    price_unit: Optional[str] = None,
 ) -> Dict[str, Any]:
     """Record a team-attested competitor. `source_note` is mandatory — an
     entry with no stated source is exactly the unsourced claim this
     application exists to prevent.
+
+    mrp/ptr/pts here describe THIS competitor brand's own trade price, not
+    the caller's — distinct from the forecast module's trade price structure,
+    which models the user's own planned brand. MRP is the only one of the
+    three a public source can ever carry (a retail listing); PTR and PTS are
+    confidential terms in the competitor's own distribution agreements, so
+    they will almost always be blank unless a team's own trade contacts
+    supplied one — never populated from a scrape or an estimate.
     """
     if not source_note or not source_note.strip():
         raise ValueError("A manual competitor entry must state its source.")
+    if (ptr is not None or pts is not None) and mrp is None:
+        raise ValueError(
+            "PTR/PTS without an MRP is unusual enough to be worth double-checking — "
+            "supply the MRP too, or omit PTR/PTS if it genuinely is not known."
+        )
 
     record = ManualCompetitorORM(
         id=uuid.uuid4().hex,
@@ -837,6 +854,10 @@ def add_manual_competitor(
         value_estimate=value_estimate,
         value_unit=(value_unit or "").strip() or None,
         value_basis=(value_basis or "").strip() or None,
+        mrp=mrp,
+        ptr=ptr,
+        pts=pts,
+        price_unit=(price_unit or "").strip() or None,
         source_note=source_note.strip(),
         added_by=added_by.strip() or "Unattributed",
         added_at=datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
@@ -863,6 +884,10 @@ def _manual_competitor_dict(row) -> Dict[str, Any]:
         "value_estimate": row.value_estimate,
         "value_unit": row.value_unit,
         "value_basis": row.value_basis,
+        "mrp": row.mrp,
+        "ptr": row.ptr,
+        "pts": row.pts,
+        "price_unit": row.price_unit,
         "source_note": row.source_note,
         "added_by": row.added_by,
         "added_at": row.added_at,

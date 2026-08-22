@@ -38,6 +38,19 @@ class ManualCompetitorORM(Base):
     value_unit = Column(String, nullable=True)
     value_basis = Column(Text, nullable=True)   # how the figure was arrived at, if given
 
+    # Trade price structure for THIS competitor brand — MRP is the only one of
+    # the three a public source (a retail pharmacy listing) can ever carry.
+    # PTR and PTS are confidential terms in the manufacturer's own
+    # distribution agreements; no public page, licensed extract, or search
+    # has ever published a competitor's PTR/PTS, and none ever will by the
+    # nature of what those figures are. They stay in the schema for the rare
+    # case a team's own trade contacts supply one — never populated from a
+    # scrape or a guess.
+    mrp = Column(Float, nullable=True)
+    ptr = Column(Float, nullable=True)
+    pts = Column(Float, nullable=True)
+    price_unit = Column(String, nullable=True)   # e.g. "per strip of 10 tablets"
+
     # Provenance is mandatory: an entry with no source is indistinguishable
     # from a guess, which is exactly what this table must never become.
     source_note = Column(Text, nullable=False)

@@ -1,12 +1,17 @@
+'use client';
+
 import React from 'react';
 import { Users, UserCheck, Stethoscope, Award } from 'lucide-react';
 import { MarketForecast } from '../lib/types';
+import { useCurrency } from './CurrencyProvider';
+import { formatCurrencyFromUSD } from '../lib/currency';
 
 interface PatientFunnelProps {
   forecast: MarketForecast;
 }
 
 export default function PatientFunnel({ forecast }: PatientFunnelProps) {
+  const { display } = useCurrency();
   const steps = [
     {
       label: '1. Total Population',
@@ -70,7 +75,9 @@ export default function PatientFunnel({ forecast }: PatientFunnelProps) {
         <div>
           <span className="text-slate-500 dark:text-slate-400">Total Available Treated Market Size: </span>
           <span className="text-lg font-bold text-emerald-700 dark:text-emerald-400 font-mono ml-2">
-            ${(forecast.current_therapy_market_size_usd / 1e6).toFixed(1)} Million USD
+            {display === 'usd'
+              ? `$${(forecast.current_therapy_market_size_usd / 1e6).toFixed(1)} Million USD`
+              : formatCurrencyFromUSD(forecast.current_therapy_market_size_usd, display)}
           </span>
         </div>
         <div>
@@ -79,7 +86,9 @@ export default function PatientFunnel({ forecast }: PatientFunnelProps) {
         </div>
         <div>
           <span className="text-slate-500 dark:text-slate-400">Net Patient-Year Cost: </span>
-          <span className="font-semibold text-slate-700 dark:text-slate-200 ml-1">${forecast.annual_cost_per_patient_usd.toLocaleString()}</span>
+          <span className="font-semibold text-slate-700 dark:text-slate-200 ml-1">
+            {formatCurrencyFromUSD(forecast.annual_cost_per_patient_usd, display)}
+          </span>
         </div>
       </div>
     </div>

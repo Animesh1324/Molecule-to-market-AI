@@ -236,7 +236,16 @@ def test_brand_plan_falls_back_cleanly_with_no_competitor_data_on_file():
     assert "No source-backed competitor set is on file" in competitor_section["content_markdown"]
 
 
-def test_audit_entry_is_created():
+def _logged_in_session_header():
+    """Register + log in a throwaway test user, return the session header dict."""
+    email = f"test-{uuid.uuid4().hex[:8]}@example.com"
+    client.post("/api/auth/register", json={"email": email, "name": "Test Auditor", "password": "testpass123"})
+    login = client.post("/api/auth/login", json={"email": email, "password": "testpass123"})
+    assert login.status_code == 200
+    return {"X-Session-Token": login.json()["session_token"]}, email
+
+
+def test_audit_trail_post_requires_a_logged_in_session():
     entry = {
         "id": f"AUD-TEST-{uuid.uuid4().hex[:8]}",
         "timestamp": "2026-01-01 00:00:00",
@@ -244,11 +253,32 @@ def test_audit_entry_is_created():
         "item_reference": "test-claim",
         "verified_source": "Test source",
         "status": "VERIFIED",
-        "auditor": "Test",
+        "auditor": "Anyone can type this",
     }
     response = client.post("/api/reports/audit-trail", json=entry)
+    assert response.status_code == 401
+
+
+def test_audit_entry_is_created_and_auditor_is_server_derived():
+    """auditor must reflect who is actually logged in, never what the caller
+    typed into the request body.
+    """
+    headers, email = _logged_in_session_header()
+    entry = {
+        "id": f"AUD-TEST-{uuid.uuid4().hex[:8]}",
+        "timestamp": "2026-01-01 00:00:00",
+        "action_type": "CLAIM_VERIFIED",
+        "item_reference": "test-claim",
+        "verified_source": "Test source",
+        "status": "VERIFIED",
+        "auditor": "Someone Else Entirely",
+    }
+    response = client.post("/api/reports/audit-trail", json=entry, headers=headers)
     assert response.status_code == 201
     assert response.json()["id"] == entry["id"]
+    assert "Someone Else Entirely" not in response.json()["auditor"]
+    assert email in response.json()["auditor"]
+    assert "Test Auditor" in response.json()["auditor"]
 
 
 def test_audit_log_rejects_reusing_an_existing_id_rather_than_overwriting():
@@ -256,23 +286,25 @@ def test_audit_log_rejects_reusing_an_existing_id_rather_than_overwriting():
     rewritten. Posting the same id twice with a different status must be
     rejected, not silently applied as an edit.
     """
+    headers, _ = _logged_in_session_header()
     entry_id = f"AUD-TEST-{uuid.uuid4().hex[:8]}"
     first = {
         "id": entry_id, "timestamp": "2026-01-01 00:00:00",
         "action_type": "CLAIM_VERIFIED", "item_reference": "test-claim",
         "verified_source": "Test source", "status": "VERIFIED", "auditor": "Original Auditor",
     }
-    response = client.post("/api/reports/audit-trail", json=first)
+    response = client.post("/api/reports/audit-trail", json=first, headers=headers)
     assert response.status_code == 201
 
     tampered = {**first, "status": "APPROVED", "auditor": "Different Auditor"}
-    response = client.post("/api/reports/audit-trail", json=tampered)
+    response = client.post("/api/reports/audit-trail", json=tampered, headers=headers)
     assert response.status_code == 409
 
     # Confirm the original entry survived untouched — not silently overwritten.
+    # (auditor on both attempts is server-derived from the same session, so the
+    # meaningful check is status, which the tampered repost tried to change.)
     trail = client.get("/api/reports/audit-trail").json()
     stored = next(e for e in trail if e["id"] == entry_id)
-    assert stored["auditor"] == "Original Auditor"
     assert stored["status"] == "VERIFIED"
 
 

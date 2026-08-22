@@ -12,6 +12,8 @@
 
 import { Building2, Database, Layers, TrendingDown, TrendingUp } from 'lucide-react';
 import type { ClassRival, CompanyShare, CompetitorProfile, MarketSummary } from '@/lib/types';
+import { useCurrency } from './CurrencyProvider';
+import { formatCurrencyFromCrore } from '../lib/currency';
 
 interface Props {
   summary: MarketSummary;
@@ -19,13 +21,6 @@ interface Props {
   companies: CompanyShare[];
   classRivals: ClassRival[];
   moleculeName: string;
-}
-
-/** Indian audit extracts report value in crore; show that natively. */
-function formatValue(value?: number | null, unit?: string | null): string {
-  if (value === null || value === undefined) return '—';
-  const rounded = value >= 100 ? value.toFixed(0) : value.toFixed(2);
-  return `${rounded} ${unit || ''}`.trim();
 }
 
 function GrowthBadge({ value }: { value?: number | null }) {
@@ -54,6 +49,21 @@ export default function MarketIntelligencePanel({
   classRivals,
   moleculeName,
 }: Props) {
+  const { display } = useCurrency();
+
+  // Only reinterpret the figure as Crore-denominated when the extract itself
+  // says so — an uploaded dataset can in principle carry a different unit,
+  // and silently treating it as Crore would misrepresent it rather than just
+  // leave the currency switch inapplicable to that one dataset.
+  const formatValue = (value?: number | null, unit?: string | null): string => {
+    if (value === null || value === undefined) return '—';
+    if (unit && unit.toUpperCase().includes('CR')) {
+      return formatCurrencyFromCrore(value, display);
+    }
+    const rounded = value >= 100 ? value.toFixed(0) : value.toFixed(2);
+    return `${rounded} ${unit || ''}`.trim();
+  };
+
   if (!summary?.has_data) {
     return (
       <div className="p-6 rounded-2xl border border-amber-400/60 bg-amber-50 dark:bg-amber-950/30 space-y-2">

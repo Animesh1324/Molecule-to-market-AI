@@ -47,6 +47,14 @@ class CompetitorProfile(BaseModel):
     source_note: Optional[str] = None
     added_by: Optional[str] = None
     added_at: Optional[str] = None
+    # This competitor's own trade price, if known. mrp can come from a public
+    # retail listing; ptr/pts are confidential trade terms almost never
+    # available for a competitor — present only when a team's own contacts
+    # supplied one.
+    mrp: Optional[float] = None
+    ptr: Optional[float] = None
+    pts: Optional[float] = None
+    price_unit: Optional[str] = None
 
 
 class ClassRival(BaseModel):

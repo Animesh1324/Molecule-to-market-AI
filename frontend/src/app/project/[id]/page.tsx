@@ -35,6 +35,8 @@ import PatientFunnel from '../../../components/PatientFunnel';
 import ForecastCharts from '../../../components/ForecastCharts';
 import PositioningMatrix from '../../../components/PositioningMatrix';
 import MarketIntelligencePanel from '../../../components/MarketIntelligencePanel';
+import { useCurrency } from '../../../components/CurrencyProvider';
+import { formatCurrencyFromINR } from '../../../lib/currency';
 import ManualCompetitorPanel from '../../../components/ManualCompetitorPanel';
 import VisualAidCarousel from '../../../components/VisualAidCarousel';
 import MRObjectionSimulator from '../../../components/MRObjectionSimulator';
@@ -88,6 +90,7 @@ export default function ProjectWorkspacePage() {
   const params = useParams();
   const router = useRouter();
   const projectId = params?.id as string;
+  const { display: currencyDisplay } = useCurrency();
 
   // Active module tab
   const [activeTab, setActiveTab] = useState('molecule');
@@ -1486,7 +1489,7 @@ export default function ProjectWorkspacePage() {
                   <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-950/40 border border-slate-200 dark:border-slate-800">
                     <span className="text-[10px] uppercase tracking-wider text-slate-500 dark:text-slate-400 block mb-1">MRP</span>
                     <span className="text-lg font-bold text-slate-900 dark:text-white font-mono">
-                      ₹{forecast.trade_price_structure.mrp_per_patient_year.toLocaleString('en-IN')}
+                      {formatCurrencyFromINR(forecast.trade_price_structure.mrp_per_patient_year, currencyDisplay)}
                     </span>
                   </div>
                   <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-950/40 border border-slate-200 dark:border-slate-800">
@@ -1494,7 +1497,7 @@ export default function ProjectWorkspacePage() {
                       PTR <span className="text-rose-600 dark:text-rose-400">(−{forecast.trade_price_structure.retailer_margin_percent.toFixed(1)}% retailer margin)</span>
                     </span>
                     <span className="text-lg font-bold text-slate-900 dark:text-white font-mono">
-                      ₹{forecast.trade_price_structure.ptr_per_patient_year.toLocaleString('en-IN')}
+                      {formatCurrencyFromINR(forecast.trade_price_structure.ptr_per_patient_year, currencyDisplay)}
                     </span>
                   </div>
                   <div className="p-3 rounded-xl bg-emerald-50 dark:bg-emerald-950/20 border border-emerald-300 dark:border-emerald-800">
@@ -1502,7 +1505,7 @@ export default function ProjectWorkspacePage() {
                       PTS <span className="text-rose-600 dark:text-rose-400">(−{forecast.trade_price_structure.stockist_margin_percent.toFixed(1)}% stockist margin)</span>
                     </span>
                     <span className="text-lg font-bold text-emerald-800 dark:text-emerald-300 font-mono">
-                      ₹{forecast.trade_price_structure.pts_per_patient_year.toLocaleString('en-IN')}
+                      {formatCurrencyFromINR(forecast.trade_price_structure.pts_per_patient_year, currencyDisplay)}
                     </span>
                   </div>
                 </div>
@@ -1510,7 +1513,9 @@ export default function ProjectWorkspacePage() {
                   Manufacturer realizes <strong className="text-slate-700 dark:text-slate-200">{forecast.trade_price_structure.manufacturer_realization_percent_of_mrp.toFixed(1)}%</strong> of
                   MRP per patient-year. Addressable market at PTS:{' '}
                   <strong className="text-slate-700 dark:text-slate-200 font-mono">
-                    ₹{forecast.therapy_market_size_inr_at_trade_price?.toLocaleString('en-IN')}
+                    {forecast.therapy_market_size_inr_at_trade_price != null
+                      ? formatCurrencyFromINR(forecast.therapy_market_size_inr_at_trade_price, currencyDisplay)
+                      : '—'}
                   </strong>{' '}
                   — the company's own revenue basis, distinct from the patient-facing USD market size above, which includes the retailer and stockist margins PTS excludes.
                 </p>

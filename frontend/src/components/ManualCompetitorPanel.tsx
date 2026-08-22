@@ -36,6 +36,16 @@ export default function ManualCompetitorPanel({ moleculeName, currentUser }: Pro
   const [sourceNote, setSourceNote] = useState('');
   const [addedBy, setAddedBy] = useState(currentUser || '');
 
+  // Trade pricing is a separate, optional block: MRP can come from a retail
+  // listing, but PTR/PTS are confidential distribution terms almost never
+  // knowable for a competitor's brand, so this stays collapsed by default
+  // rather than implying it's routinely fillable.
+  const [showPricing, setShowPricing] = useState(false);
+  const [mrp, setMrp] = useState('');
+  const [ptr, setPtr] = useState('');
+  const [pts, setPts] = useState('');
+  const [priceUnit, setPriceUnit] = useState('');
+
   const refresh = useCallback(async () => {
     try {
       setEntries(await fetchManualCompetitors(moleculeName));
@@ -62,11 +72,20 @@ export default function ManualCompetitorPanel({ moleculeName, currentUser }: Pro
         company: company.trim() || undefined,
         source_note: sourceNote.trim(),
         added_by: addedBy.trim(),
+        mrp: mrp ? parseFloat(mrp) : undefined,
+        ptr: ptr ? parseFloat(ptr) : undefined,
+        pts: pts ? parseFloat(pts) : undefined,
+        price_unit: priceUnit.trim() || undefined,
       });
       setBrand('');
       setCompany('');
       setSourceNote('');
+      setMrp('');
+      setPtr('');
+      setPts('');
+      setPriceUnit('');
       setShowForm(false);
+      setShowPricing(false);
       await refresh();
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Could not add this competitor.');
@@ -135,6 +154,57 @@ export default function ManualCompetitorPanel({ moleculeName, currentUser }: Pro
             placeholder="Your name *"
             className="w-full sm:w-64 px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-sm text-slate-800 dark:text-slate-100"
           />
+
+          <button
+            type="button"
+            onClick={() => setShowPricing((v) => !v)}
+            className="text-xs font-semibold text-amber-700 dark:text-amber-400 hover:underline"
+          >
+            {showPricing ? '− Hide trade pricing' : '+ Add trade pricing (optional)'}
+          </button>
+
+          {showPricing && (
+            <div className="p-3 rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 space-y-2.5">
+              <p className="text-[11px] text-slate-500 dark:text-slate-400">
+                MRP can usually be checked on a retail pharmacy listing. PTR and PTS are confidential
+                terms in this competitor&apos;s own distribution agreements — no public source carries
+                them. Leave blank unless a team contact has genuinely told you one.
+              </p>
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+                <input
+                  type="number"
+                  min={0}
+                  value={mrp}
+                  onChange={(e) => setMrp(e.target.value)}
+                  placeholder="MRP"
+                  className="px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-sm text-slate-800 dark:text-slate-100"
+                />
+                <input
+                  type="number"
+                  min={0}
+                  value={ptr}
+                  onChange={(e) => setPtr(e.target.value)}
+                  placeholder="PTR (rarely known)"
+                  className="px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-sm text-slate-800 dark:text-slate-100"
+                />
+                <input
+                  type="number"
+                  min={0}
+                  value={pts}
+                  onChange={(e) => setPts(e.target.value)}
+                  placeholder="PTS (rarely known)"
+                  className="px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-sm text-slate-800 dark:text-slate-100"
+                />
+              </div>
+              <input
+                value={priceUnit}
+                onChange={(e) => setPriceUnit(e.target.value)}
+                placeholder='What are these per? e.g. "per strip of 10 tablets"'
+                className="w-full px-3 py-2 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-sm text-slate-800 dark:text-slate-100"
+              />
+            </div>
+          )}
+
           <button
             type="button"
             onClick={handleAdd}
@@ -175,6 +245,28 @@ export default function ManualCompetitorPanel({ moleculeName, currentUser }: Pro
                       manual · unaudited
                     </span>
                   </div>
+                  {(entry.mrp || entry.ptr || entry.pts) && (
+                    <div className="flex flex-wrap gap-1.5 mt-1.5">
+                      {entry.mrp != null && (
+                        <span className="px-1.5 py-0.5 rounded text-[10px] font-mono bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700">
+                          MRP ₹{entry.mrp.toLocaleString('en-IN')}
+                        </span>
+                      )}
+                      {entry.ptr != null && (
+                        <span className="px-1.5 py-0.5 rounded text-[10px] font-mono bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700">
+                          PTR ₹{entry.ptr.toLocaleString('en-IN')}
+                        </span>
+                      )}
+                      {entry.pts != null && (
+                        <span className="px-1.5 py-0.5 rounded text-[10px] font-mono bg-emerald-50 dark:bg-emerald-950/30 text-emerald-800 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-800">
+                          PTS ₹{entry.pts.toLocaleString('en-IN')}
+                        </span>
+                      )}
+                      {entry.price_unit && (
+                        <span className="text-[10px] text-slate-400 dark:text-slate-500 self-center">{entry.price_unit}</span>
+                      )}
+                    </div>
+                  )}
                   <p className="text-xs text-slate-600 dark:text-slate-300 mt-1">{entry.source_note}</p>
                   <p className="text-[10px] font-mono text-slate-400 dark:text-slate-500 mt-1">
                     Added by {entry.added_by} · {entry.added_at}

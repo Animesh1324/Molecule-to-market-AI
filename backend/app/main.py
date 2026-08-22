@@ -11,6 +11,7 @@ from .api import (
     lifecycle,
     competitors,
     market,
+    auth,
     drugs,
     creative_assets,
     evidence,
@@ -115,6 +116,7 @@ app.include_router(uploads.router, dependencies=[Depends(require_access)])
 app.include_router(intelligence.router, dependencies=[Depends(require_access)])
 app.include_router(drugs.router, dependencies=[Depends(require_access)])
 app.include_router(market.router, dependencies=[Depends(require_access)])
+app.include_router(auth.router, dependencies=[Depends(require_access)])
 
 
 @app.get("/")

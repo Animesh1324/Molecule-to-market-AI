@@ -1,7 +1,8 @@
 import re
 from urllib.parse import quote
 
-from fastapi import APIRouter, Query, Response, HTTPException
+from fastapi import APIRouter, Query, Response, HTTPException, Request
+from . import auth
 from typing import List, Optional
 from datetime import datetime
 from ..models.reports import MLRAuditEntry
@@ -66,15 +67,23 @@ async def get_audit_trail():
 
 
 @router.post("/audit-trail", response_model=MLRAuditEntry, status_code=201)
-async def create_audit_entry(entry: MLRAuditEntry):
+async def create_audit_entry(entry: MLRAuditEntry, request: Request):
     """Record a new audit entry. Write-once — reusing an existing id is
     rejected rather than silently overwriting what it already recorded.
+
+    Requires a logged-in session. `auditor` is always overwritten with the
+    authenticated user's own name and email, never trusted from the request
+    body — an audit trail whose "who did this" field is whatever the caller
+    typed is exactly the unsourced claim this table exists to prevent.
     """
+    user = auth.get_current_user(request)
+    payload = entry.model_dump() if hasattr(entry, 'model_dump') else entry.dict()
+    payload["auditor"] = f"{user.name} <{user.email}>"
     try:
-        db.db_save_mlr_audit_log(entry.model_dump() if hasattr(entry, 'model_dump') else entry.dict())
+        db.db_save_mlr_audit_log(payload)
     except db.AuditLogAlreadyExists as exc:
         raise HTTPException(status_code=409, detail=str(exc)) from exc
-    return entry
+    return MLRAuditEntry(**payload)
 
 @router.get("/export/docx")
 async def export_brand_plan_docx(

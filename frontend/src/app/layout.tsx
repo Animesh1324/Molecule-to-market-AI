@@ -2,6 +2,7 @@ import type { Metadata } from 'next';
 import '../styles/globals.css';
 import MLRComplianceBanner from '../components/MLRComplianceBanner';
 import { ThemeProvider } from '../components/ThemeProvider';
+import { CurrencyProvider } from '../components/CurrencyProvider';
 
 export const metadata: Metadata = {
   title: 'Molecule to Market AI — Molecule to Commercial Strategy',
@@ -43,6 +44,7 @@ export default function RootLayout({
       </head>
       <body className="bg-white dark:bg-navy-950 text-navy-900 dark:text-navy-100 min-h-screen flex flex-col font-sans transition-colors">
         <ThemeProvider>
+        <CurrencyProvider>
           <MLRComplianceBanner />
           <main className="flex-1 flex flex-col">{children}</main>
           <footer className="bg-slate-50 dark:bg-slate-950 border-t border-slate-200 dark:border-slate-800/80 py-6 px-6 text-center text-xs text-slate-500 dark:text-slate-500 dark:text-slate-500">
@@ -66,6 +68,7 @@ export default function RootLayout({
               </div>
             </div>
           </footer>
+        </CurrencyProvider>
         </ThemeProvider>
       </body>
     </html>

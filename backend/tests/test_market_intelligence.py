@@ -416,3 +416,62 @@ def test_manual_entry_post_endpoint_round_trip():
         assert deleted_again.status_code == 404
     finally:
         market.delete_manual_competitor(entry_id)
+
+
+# --------------------------------------------------------------------------
+# Competitor trade pricing (MRP/PTR/PTS on a manual entry)
+#
+# MRP can come from a public retail listing; PTR and PTS are confidential
+# trade terms almost never available for a COMPETITOR (as opposed to the
+# forecast module's PTR/PTS, which models the user's OWN planned brand).
+# --------------------------------------------------------------------------
+
+def test_manual_entry_accepts_mrp_only():
+    entry = market.add_manual_competitor(
+        molecule="Semaglutide", brand="Testabrand2",
+        source_note="Retail listing, checked manually", added_by="Test",
+        mrp=14219.10, price_unit="per strip of 10 tablets")
+    try:
+        assert entry["mrp"] == 14219.10
+        assert entry["ptr"] is None
+        assert entry["pts"] is None
+        assert entry["price_unit"] == "per strip of 10 tablets"
+    finally:
+        market.delete_manual_competitor(entry["id"])
+
+
+def test_manual_entry_rejects_ptr_or_pts_without_an_mrp():
+    """PTR/PTS with no MRP is unusual enough to be worth a deliberate check
+    rather than silently accepting a partial, unverifiable trade structure.
+    """
+    with pytest.raises(ValueError):
+        market.add_manual_competitor(
+            molecule="Semaglutide", brand="Testabrand3",
+            source_note="Test", added_by="Test", ptr=15500)
+
+
+def test_manual_entry_accepts_full_trade_structure_when_genuinely_known():
+    entry = market.add_manual_competitor(
+        molecule="Semaglutide", brand="Testabrand4",
+        source_note="Field team's own trade contact, verbal, 2026-08", added_by="Test",
+        mrp=18000, ptr=15500, pts=13200)
+    try:
+        assert entry["mrp"] == 18000
+        assert entry["ptr"] == 15500
+        assert entry["pts"] == 13200
+    finally:
+        market.delete_manual_competitor(entry["id"])
+
+
+def test_competitor_endpoint_surfaces_mrp_for_a_manual_entry():
+    entry = market.add_manual_competitor(
+        molecule="Semaglutide", brand="Testabrand5",
+        source_note="Retail listing", added_by="Test", mrp=14219.10)
+    try:
+        response = client.get("/api/competitors/landscape", params={"molecule": "Semaglutide"})
+        body = response.json()
+        row = next(c for c in body["competitors"] if c["brand_name"] == "Testabrand5")
+        assert row["mrp"] == 14219.10
+        assert row["ptr"] is None
+    finally:
+        market.delete_manual_competitor(entry["id"])

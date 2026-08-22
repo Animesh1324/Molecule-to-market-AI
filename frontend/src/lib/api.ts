@@ -302,6 +302,10 @@ export interface ManualCompetitor {
   value_estimate?: number | null;
   value_unit?: string | null;
   value_basis?: string | null;
+  mrp?: number | null;
+  ptr?: number | null;
+  pts?: number | null;
+  price_unit?: string | null;
   source_note: string;
   added_by: string;
   added_at: string;
@@ -327,6 +331,10 @@ export async function addManualCompetitor(payload: {
   value_estimate?: number;
   value_unit?: string;
   value_basis?: string;
+  mrp?: number;
+  ptr?: number;
+  pts?: number;
+  price_unit?: string;
 }): Promise<ManualCompetitor> {
   const res = await fetch(`${API_BASE}/api/market/competitors/manual`, {
     method: 'POST',

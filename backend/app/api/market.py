@@ -123,6 +123,14 @@ class ManualCompetitorRequest(BaseModel):
     value_unit: Optional[str] = Field(None, max_length=20)
     value_basis: Optional[str] = Field(
         None, max_length=500, description="How the value was arrived at, if one is given")
+    mrp: Optional[float] = Field(None, ge=0, le=10_000_000,
+        description="This competitor's MRP, if known (a retail listing can carry this)")
+    ptr: Optional[float] = Field(None, ge=0, le=10_000_000,
+        description="This competitor's Price to Retailer, if genuinely known — no public source carries this")
+    pts: Optional[float] = Field(None, ge=0, le=10_000_000,
+        description="This competitor's Price to Stockist, if genuinely known — no public source carries this")
+    price_unit: Optional[str] = Field(None, max_length=80,
+        description='What mrp/ptr/pts are per, e.g. "per strip of 10 tablets"')
 
 
 @router.get("/competitors/manual")
@@ -153,6 +161,10 @@ async def add_manual_competitor_endpoint(request: ManualCompetitorRequest) -> Di
             value_estimate=request.value_estimate,
             value_unit=request.value_unit,
             value_basis=request.value_basis,
+            mrp=request.mrp,
+            ptr=request.ptr,
+            pts=request.pts,
+            price_unit=request.price_unit,
         )
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
