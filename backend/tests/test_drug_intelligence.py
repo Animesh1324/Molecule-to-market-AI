@@ -410,3 +410,50 @@ def test_api_docs_are_not_public_in_production(monkeypatch):
         import importlib
         from app import main as main_module
         importlib.reload(main_module)
+
+
+def test_search_prefers_records_carrying_label_content():
+    """A bulk-ingredient listing must not outrank the finished product.
+
+    The NDC directory lists raw active-ingredient consignments under the same
+    generic name as the marketed drug, with no brand, class, or label. Before
+    the completeness tie-break these won their tier on alphabetical order.
+    """
+    repo.upsert_drug(DrugRecord(
+        generic_name="Rankolimus",
+        brand_name=None,
+        manufacturer="Aaa Bulk Chemicals Ltd",
+        attribution=SourceAttribution(source_name="test-bulk"),
+    ))
+    repo.upsert_drug(DrugRecord(
+        generic_name="Rankolimus",
+        brand_name="Zzzbrand",
+        drug_class="Kinase Inhibitor [EPC]",
+        indications="Indicated for a documented condition.",
+        attribution=SourceAttribution(source_name="test-finished"),
+    ))
+
+    rows, total = repo.search_drugs("rankolimus", page_size=10)
+    assert total >= 2
+    assert rows[0]["brand_name"] == "Zzzbrand"
+    assert rows[0]["indications"]
+
+
+def test_search_completeness_never_overrides_name_relevance():
+    """Tie-breakers rank within a tier, never across tiers."""
+    repo.upsert_drug(DrugRecord(
+        generic_name="Exactonel",
+        brand_name=None,
+        attribution=SourceAttribution(source_name="test-exact"),
+    ))
+    repo.upsert_drug(DrugRecord(
+        generic_name="Exactonel Extended Release Complex",
+        brand_name="Richbrand",
+        drug_class="Some Class [EPC]",
+        indications="A rich record that is nonetheless a weaker name match.",
+        attribution=SourceAttribution(source_name="test-rich"),
+    ))
+
+    rows, _ = repo.search_drugs("exactonel", page_size=10)
+    # Exact name wins despite carrying no label content.
+    assert rows[0]["generic_name"] == "Exactonel"

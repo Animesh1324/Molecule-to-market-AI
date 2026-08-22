@@ -219,7 +219,7 @@ def search_drugs(term: str, page: int = 1, page_size: int = 25) -> Tuple[List[Di
         total = query.count()
         rows = query.order_by(DrugORM.generic_name.asc()).all()
 
-        def rank(row: DrugORM) -> Tuple[int, str]:
+        def rank(row: DrugORM) -> Tuple[int, int, int, str]:
             generic = (row.generic_name or "").lower()
             brand = (row.brand_name or "").lower()
             if clean in (generic, brand):
@@ -230,7 +230,17 @@ def search_drugs(term: str, page: int = 1, page_size: int = 25) -> Tuple[List[Di
                 tier = 2                      # name substring
             else:
                 tier = 3                      # matched on class/ingredient/strength
-            return tier, generic
+
+            # Within a tier, prefer the record that actually carries content.
+            # The NDC directory lists bulk active-ingredient consignments from
+            # chemical suppliers alongside finished products: same generic
+            # name, no brand, no label, no class. Ordering a tier purely by
+            # name lets those win on alphabetical luck, so "pembrolizumab"
+            # returned a Boehringer ingredient row above Keytruda. These are
+            # tie-breakers only — they never reorder name relevance itself.
+            has_label = 0 if row.indications else 1
+            has_class = 0 if row.drug_class else 1
+            return tier, has_label, has_class, generic
 
         rows.sort(key=rank)
         start = max(0, (page - 1) * page_size)
