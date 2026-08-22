@@ -280,3 +280,130 @@ def test_placeholder_text_and_its_own_blank_detector_stay_in_sync():
     source = inspect.getsource(PC)
     assert '"Not stated in the source record"' in source
     assert '"not stated in the source record"' in source.lower()
+
+
+# --------------------------------------------------------------------------
+# _innovator: a combination NDA must not outrank a single-ingredient
+# application just because NDA beats ANDA as a filing type, and a winning
+# single-ingredient application must itself be an NDA/BLA before its brand is
+# trusted as "the innovator" — a single-ingredient ANDA is a generic filing of
+# something, not evidence of who originated it.
+#
+# Reproduces the exact live finding: acetaminophen has no NDA at all for the
+# plain molecule (an OTC monograph drug, never formally NDA'd), so the only
+# NDA-ranked application matching it was Combogesic IV — an unrelated
+# acetaminophen+ibuprofen combination — which won under the old
+# (type-first, single-ingredient-only-as-tiebreak) ranking and was reported
+# as acetaminophen's own "innovator".
+# --------------------------------------------------------------------------
+
+def test_innovator_prefers_single_ingredient_over_application_type():
+    """A single-ingredient ANDA must outrank a combination NDA — type is only
+    the secondary sort key, single-ingredient status is primary.
+    """
+    combo_nda = _application("NDA211835", [["ACETAMINOPHEN", "IBUPROFEN"]],
+                             "Combogesic Iv", approved="1992-01-01")
+    single_anda = _application("ANDA204052", [["ACETAMINOPHEN"]],
+                               "Acetaminophen", approved="2015-01-01")
+
+    brand, sponsor = R._innovator([combo_nda, single_anda], "Acetaminophen")
+    assert brand != "Combogesic Iv"
+
+
+def test_innovator_requires_the_single_ingredient_winner_to_be_nda_or_bla():
+    """A single-ingredient ANDA alone is not evidence of who the innovator
+    is — only an NDA/BLA earns that claim. No such filing exists here
+    (matching the real acetaminophen case), so this must return (None, None)
+    rather than crediting a generic filer as "the innovator".
+    """
+    single_anda_1 = _application("ANDA204052", [["ACETAMINOPHEN"]], "Acetaminophen")
+    single_anda_2 = _application("ANDA072344", [["ACEPHEN"]], "Acephen")
+    combo_nda = _application("NDA211835", [["ACETAMINOPHEN", "IBUPROFEN"]], "Combogesic Iv")
+
+    brand, sponsor = R._innovator([single_anda_1, single_anda_2, combo_nda], "Acetaminophen")
+    assert brand is None
+    assert sponsor is None
+
+
+def test_innovator_still_finds_the_true_originator_when_one_exists():
+    """Regression guard: rosuvastatin's real case — a single-ingredient NDA
+    exists and must still win over a later combination NDA.
+    """
+    combo_nda = _application("NDA212385", [["ROSUVASTATIN CALCIUM", "EZETIMIBE"]],
+                             "Roszet", approved="2021-01-01")
+    single_nda = _application("NDA021366", [["ROSUVASTATIN CALCIUM"]],
+                              "Crestor", approved="2003-01-01")
+
+    brand, sponsor = R._innovator([combo_nda, single_nda], "Rosuvastatin")
+    assert brand == "Crestor"
+
+
+def test_fetch_us_fda_profile_does_not_fall_back_to_an_unrelated_labels_brand():
+    """When _innovator legitimately finds nothing, the profile must not
+    substitute the resolved label's own brand_name annotation — that array
+    can name any manufacturer's product sharing the single-ingredient label,
+    not specifically an innovator. Verified live: this fallback surfaced
+    "CVS Childrens Pain plus Fever Relief" as acetaminophen's "innovator".
+    """
+    single_anda = _application("ANDA204052", [["ACETAMINOPHEN"]], "Acetaminophen")
+    plain_label = _label(["ACETAMINOPHEN"])
+    # A label can carry its own brand_name annotation independent of brand
+    # names on drugsfda applications — this is what used to leak through.
+    plain_label["openfda"]["brand_name"] = ["CVS Childrens Pain plus Fever Relief"]
+
+    with patch.object(httpx.AsyncClient, "get", new=_mock_get({
+        "drug/label.json": [[plain_label]],
+        "drug/drugsfda.json": [[single_anda]],
+    })):
+        result = asyncio.run(R.fetch_us_fda_profile("Acetaminophen"))
+
+    assert result["info"].innovator_brand_name is None
+
+
+# --------------------------------------------------------------------------
+# INN/USAN synonym resolution: openFDA files everything under the USAN, so a
+# query using only the INN ("Paracetamol") found nothing at all until the
+# candidate retry existed — verified live before writing this, and confirmed
+# separately that PubChem and PubMed already resolve INN names natively, so
+# this gap was specific to openFDA-backed modules.
+# --------------------------------------------------------------------------
+
+def test_fetch_us_fda_profile_resolves_the_inn_when_only_the_usan_has_records():
+    single_anda = _application("ANDA204052", [["ACETAMINOPHEN"]], "Acetaminophen")
+    plain_label = _label(["ACETAMINOPHEN"])
+
+    with patch.object(httpx.AsyncClient, "get", new=_mock_get({
+        # First candidate tried ("paracetamol" itself) finds nothing — two
+        # empty responses, since _fetch_label tries generic_name then
+        # substance_name before giving up on a candidate. The USAN candidate
+        # ("acetaminophen") is what actually has records, and succeeds on
+        # its first field so substance_name is never tried for it.
+        "drug/label.json": [[], [], [plain_label]],
+        "drug/drugsfda.json": [[], [single_anda]],
+    })):
+        result = asyncio.run(R.fetch_us_fda_profile("Paracetamol"))
+
+    assert result is not None
+    assert result["application_count"] == 1
+
+
+def test_fetch_us_fda_profile_returns_none_when_no_candidate_spelling_matches():
+    with patch.object(httpx.AsyncClient, "get", new=_mock_get({
+        "drug/label.json": [[], []],
+        "drug/drugsfda.json": [[], []],
+    })):
+        result = asyncio.run(R.fetch_us_fda_profile("Paracetamol"))
+    assert result is None
+
+
+def test_fetch_molecule_clinical_profile_resolves_the_inn_too():
+    plain_label = _label(["ACETAMINOPHEN"], mechanism_of_action=["Test mechanism text."])
+
+    with patch.object(httpx.AsyncClient, "get", new=_mock_get({
+        "drug/label.json": [[], [plain_label]],
+        "drug/ndc.json": [[], []],  # pharm_class and dosage_form queries, both empty
+    })):
+        result = asyncio.run(R.fetch_molecule_clinical_profile("Paracetamol"))
+
+    assert result is not None
+    assert "Test mechanism" in result["mechanism_of_action"]

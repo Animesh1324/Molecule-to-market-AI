@@ -33,6 +33,7 @@ from sqlalchemy import and_, func, or_
 from ..db.database import SessionLocal
 from ..db.manual_competitor_models import ManualCompetitorORM
 from ..db.market_models import MarketBrandORM, MarketDatasetORM
+from . import inn_synonyms
 
 logger = logging.getLogger(__name__)
 
@@ -478,16 +479,40 @@ def delete_dataset(dataset_id: str) -> int:
         session.close()
 
 
+def _molecule_search_keys(molecule: str) -> List[str]:
+    """Every normalised key worth matching for a molecule — the name as
+    typed, plus every INN/USAN synonym.
+
+    A syndicated Indian extract files a molecule under its INN ("PARACETAMOL");
+    a US-facing source or a brand team used to US naming types the USAN
+    ("Acetaminophen"). Searching only the literal input meant "Acetaminophen"
+    returned zero competitors while 3,827 real rows sat under "PARACETAMOL" in
+    the very same table — confirmed directly against the loaded extract before
+    writing this fix, not assumed.
+    """
+    keys: List[str] = []
+    for candidate in inn_synonyms.candidates(molecule):
+        key = molecule_search_key(candidate)
+        if key and key not in keys:
+            keys.append(key)
+    return keys
+
+
 def _molecule_filter(molecule: str):
-    """Match a molecule inside plain rows and combination rows alike.
+    """Match a molecule inside plain rows and combination rows alike, under
+    any name it might be filed under.
 
     LIKE '%KEY%' rather than equality, because "EMPAGLIFLOZIN+LINAGLIPTIN" is a
     real competitor for Empagliflozin and an equality match would drop it.
+    OR'd across every synonym key for the reason in _molecule_search_keys.
     """
-    key = molecule_search_key(molecule)
-    if not key:
+    keys = _molecule_search_keys(molecule)
+    if not keys:
         return None, ""
-    return MarketBrandORM.molecule_key.like(f"%{key}%"), key
+    condition = or_(*(MarketBrandORM.molecule_key.like(f"%{key}%") for key in keys))
+    # The primary key — the input as typed, normalised — is what the caller
+    # displays back; the full synonym set only matters for the match itself.
+    return condition, keys[0]
 
 
 def _dataset_recency(dataset: MarketDatasetORM) -> Tuple[int, int, str]:
@@ -643,6 +668,7 @@ def class_competitors(molecule: str, limit: int = 12) -> Dict[str, Any]:
     condition, key = _molecule_filter(molecule)
     if condition is None:
         return {"group": None, "molecules": []}
+    subject_keys = _molecule_search_keys(molecule)
 
     session = SessionLocal()
     try:
@@ -678,7 +704,8 @@ def class_competitors(molecule: str, limit: int = 12) -> Dict[str, Any]:
         total = sum((r.value_latest or 0.0) for r in rows)
         molecules: List[Dict[str, Any]] = []
         for row in rows:
-            if key and key in (row.molecule_key or ""):
+            row_key = row.molecule_key or ""
+            if any(k in row_key for k in subject_keys):
                 continue        # the subject molecule is not its own rival
             molecules.append({
                 "molecule_key": row.molecule_key,

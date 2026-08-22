@@ -22,6 +22,7 @@ import httpx
 
 from ..config import get_settings
 from ..models.regulatory import RegulatoryAgencyInfo
+from . import inn_synonyms
 
 logger = logging.getLogger(__name__)
 
@@ -208,26 +209,39 @@ def _application_approval_year(application: Dict[str, Any]) -> int:
 def _innovator(applications: List[Dict[str, Any]], molecule: str) -> tuple:
     """Innovator brand and sponsor for the molecule.
 
-    Ranked by application type, then by earliest approval. Without the date
-    term a later fixed-dose combination built on the molecule can outrank the
-    originator — rosuvastatin returned "Roszet" (rosuvastatin + ezetimibe, 2021)
-    instead of "Crestor" (2003).
+    Single-ingredient status is the PRIMARY sort key, application type only
+    the secondary one within it. Sorting by application type first — NDA
+    before ANDA — lets a combination product's NDA outrank every
+    single-ingredient application regardless of ingredient count, since the
+    single-ingredient preference was only ever a tiebreaker inside the same
+    type. Verified live: acetaminophen has no NDA at all for the plain
+    molecule — it is an OTC monograph drug, never formally NDA'd — so the
+    only NDA-ranked application matching it was Combogesic IV, an unrelated
+    acetaminophen+ibuprofen combination, which won under the old ranking and
+    was reported as acetaminophen's own "innovator".
 
-    Single-ingredient products are preferred for the same reason: the innovator
-    brand of a molecule is the product of that molecule alone.
+    A winning single-ingredient application is trusted as the innovator only
+    when it is itself an NDA/BLA. A single-ingredient ANDA is a generic filing
+    of something — presenting its incidental brand name as "the innovator"
+    would be its own misattribution, just a different one. Genuinely absent
+    (as for acetaminophen) returns (None, None) rather than a plausible-looking
+    guess; the caller falls back to the label's own brand_name annotation.
     """
     def rank(application: Dict[str, Any]) -> tuple:
         number = (application.get("application_number") or "").upper()
         prefix = number[:3]
         products = application.get("products") or []
         single = any(len(p.get("active_ingredients") or []) == 1 for p in products)
-        return (_APPLICATION_RANK.get(prefix, 3), 0 if single else 1,
+        return (0 if single else 1, _APPLICATION_RANK.get(prefix, 3),
                 _application_approval_year(application))
 
     for application in sorted(applications, key=rank):
+        prefix = (application.get("application_number") or "").upper()[:3]
         products = application.get("products") or []
-        # Prefer a single-ingredient product within the winning application.
-        for product in sorted(products, key=lambda p: len(p.get("active_ingredients") or [])):
+        single_products = [p for p in products if len(p.get("active_ingredients") or []) == 1]
+        if not single_products or prefix not in ("NDA", "BLA"):
+            continue
+        for product in sorted(single_products, key=lambda p: len(p.get("active_ingredients") or [])):
             brand = (product.get("brand_name") or "").strip()
             if brand:
                 return brand.title(), (application.get("sponsor_name") or "").title()
@@ -267,12 +281,26 @@ def _market_status(applications: List[Dict[str, Any]]) -> str:
 
 
 async def fetch_us_fda_profile(molecule: str) -> Optional[Dict[str, Any]]:
-    """Regulatory position of a molecule with the US FDA, or None if unlisted."""
+    """Regulatory position of a molecule with the US FDA, or None if unlisted.
+
+    Tries every INN/USAN spelling of the molecule, not just the one supplied.
+    openFDA files everything under the USAN — "Paracetamol" (the INN, used
+    everywhere outside the US, including India) returned nothing at all until
+    this existed, even though the same molecule under "Acetaminophen" has
+    thousands of records. inn_synonyms already solved exactly this for the
+    drug catalogue, Orange Book, and patient-experience modules; this module
+    just hadn't been wired to it.
+    """
+    label: Optional[Dict[str, Any]] = None
+    all_applications: List[Dict[str, Any]] = []
     async with httpx.AsyncClient(timeout=TIMEOUT) as client:
-        label, all_applications = await asyncio.gather(
-            _fetch_label(client, molecule),
-            _fetch_applications(client, molecule),
-        )
+        for candidate in inn_synonyms.candidates(molecule):
+            label, all_applications = await asyncio.gather(
+                _fetch_label(client, candidate),
+                _fetch_applications(client, candidate),
+            )
+            if label or all_applications:
+                break
 
     if not label and not all_applications:
         return None
@@ -291,8 +319,14 @@ async def fetch_us_fda_profile(molecule: str) -> Optional[Dict[str, Any]]:
     label = label or {}
     openfda = label.get("openfda") or {}
     brand, sponsor = _innovator(all_applications, molecule)
-    if not brand:
-        brand = (openfda.get("brand_name") or [None])[0]
+    # No fallback to the label's own brand_name annotation: that array names
+    # whichever single-ingredient product's label was most recently updated,
+    # which for a molecule with no genuine NDA/BLA (most OTC monograph drugs —
+    # acetaminophen has never been formally NDA'd) can be any manufacturer's
+    # store-brand copy. Verified live: the fallback surfaced "CVS Childrens
+    # Pain plus Fever Relief" as acetaminophen's "innovator". Leaving `brand`
+    # as None here is the honest answer — a marketed product is not the same
+    # claim as an innovator, and this field makes exactly that claim.
 
     application_numbers = sorted({
         str(a.get("application_number")) for a in applications
@@ -468,15 +502,27 @@ async def fetch_molecule_clinical_profile(molecule: str) -> Optional[Dict[str, A
     Returns only what the label actually states. A section the SPL omits comes
     back empty, so the caller can leave the field alone rather than filling it
     with text borrowed from a different product.
+
+    Tries every INN/USAN spelling — see fetch_us_fda_profile for why: openFDA
+    files under the USAN, so an INN-only query like "Paracetamol" found
+    nothing on its own. Once a spelling resolves a label, pharm_class and
+    dosage_forms are queried under that same resolved spelling rather than
+    the original input, so all three read from one consistent identity.
     """
+    label: Optional[Dict[str, Any]] = None
+    resolved_name = molecule
     async with httpx.AsyncClient(timeout=TIMEOUT) as client:
-        label, pharm_classes, dosage_forms = await asyncio.gather(
-            _fetch_label(client, molecule),
-            _fetch_pharm_class(client, molecule),
-            _fetch_dosage_forms(client, molecule),
+        for candidate in inn_synonyms.candidates(molecule):
+            label = await _fetch_label(client, candidate)
+            if label:
+                resolved_name = candidate
+                break
+        if not label:
+            return None
+        pharm_classes, dosage_forms = await asyncio.gather(
+            _fetch_pharm_class(client, resolved_name),
+            _fetch_dosage_forms(client, resolved_name),
         )
-    if not label:
-        return None
 
     openfda = label.get("openfda") or {}
     pharmacology = " ".join(
