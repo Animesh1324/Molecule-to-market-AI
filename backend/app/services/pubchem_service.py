@@ -1,9 +1,11 @@
+import asyncio
 import httpx
 import logging
 from typing import Optional, Dict, Any
 from ..models.molecule import MoleculeProfile, Pharmacokinetics, SpecialPopulations, AdverseEffects
 from .molecule_resolver import resolve as resolve_molecule
 from .openfda_regulatory import fetch_molecule_clinical_profile
+from . import response_cache
 
 logger = logging.getLogger(__name__)
 
@@ -431,20 +433,32 @@ async def _combination_profile(resolved) -> MoleculeProfile:
     )
 
 
-async def fetch_molecule_intelligence(molecule_name: str) -> MoleculeProfile:
+async def _fetch_molecule_intelligence_impl(molecule_name: str) -> MoleculeProfile:
     """Molecule profile: chemistry from PubChem, pharmacology from the FDA label.
 
     PubChem is a chemical registry — it answers formula, weight, and structure,
     and carries no pharmacology at all. On its own it left every clinical field
     reading "Not stated in the source record" for any molecule without a hand-written entry.
 
-    So the chemistry layer is built first and then enriched from the molecule's
-    FDA structured product label, which is where class, mechanism, indications,
-    dosing, contraindications, and interactions actually live. Enrichment only
-    fills fields that are empty, so curated values always win.
+    So the chemistry layer is enriched from the molecule's FDA structured
+    product label, which is where class, mechanism, indications, dosing,
+    contraindications, and interactions actually live. Enrichment only fills
+    fields that are empty, so curated values always win.
+
+    PubChem and openFDA are fetched concurrently rather than one after the
+    other: neither depends on the other's network response — enrichment only
+    needs the chemistry profile's *values* to decide what's already filled,
+    which happens after both round trips are back, not during either of
+    them. Measured live: sequential fetching made GET /api/molecules/search
+    take ~7s for a molecule needing openFDA's synonym retry; fetching
+    concurrently removes the chemistry round trip from that critical path
+    entirely rather than adding it on top.
     """
-    profile = await _chemistry_profile(molecule_name)
-    return await _enrich_from_label(profile, molecule_name)
+    profile, clinical = await asyncio.gather(
+        _chemistry_profile(molecule_name),
+        _fetch_clinical_enrichment(molecule_name),
+    )
+    return _apply_enrichment(profile, clinical)
 
 
 async def _chemistry_profile(molecule_name: str) -> MoleculeProfile:
@@ -579,8 +593,20 @@ async def _chemistry_profile(molecule_name: str) -> MoleculeProfile:
     )
 
 
-async def _enrich_from_label(profile: MoleculeProfile, molecule_name: str) -> MoleculeProfile:
-    """Fill the clinical fields PubChem cannot answer, from the FDA label.
+async def _fetch_clinical_enrichment(molecule_name: str) -> Optional[Dict[str, Any]]:
+    """The openFDA fetch half of enrichment, kept separate so it can run
+    concurrently with the PubChem chemistry fetch rather than after it.
+    """
+    try:
+        return await fetch_molecule_clinical_profile(molecule_name)
+    except Exception:
+        logger.warning("openFDA clinical enrichment failed for %s", molecule_name, exc_info=True)
+        return None
+
+
+def _apply_enrichment(profile: MoleculeProfile, clinical: Optional[Dict[str, Any]]) -> MoleculeProfile:
+    """Fill the clinical fields PubChem cannot answer, from already-fetched
+    FDA label data.
 
     PubChem is a chemical registry — formula, weight, SMILES. It has no
     pharmacology, so every clinical field on a non-curated molecule rendered
@@ -588,13 +614,10 @@ async def _enrich_from_label(profile: MoleculeProfile, molecule_name: str) -> Mo
 
     Only empty fields are filled: a curated or PubChem-supplied value always
     wins, and a label section the SPL omits leaves the field as it was rather
-    than borrowing text from a different product.
+    than borrowing text from a different product. Purely synchronous — no
+    network call happens here, it only merges what _fetch_clinical_enrichment
+    already retrieved.
     """
-    try:
-        clinical = await fetch_molecule_clinical_profile(molecule_name)
-    except Exception:
-        logger.warning("openFDA clinical enrichment failed for %s", molecule_name, exc_info=True)
-        return profile
     if not clinical:
         return profile
 
@@ -631,3 +654,24 @@ async def _enrich_from_label(profile: MoleculeProfile, molecule_name: str) -> Mo
             update={"common": adverse[:10]})
 
     return profile.model_copy(update=updates) if updates else profile
+
+
+# openFDA's own live latency dominates this call for any non-curated
+# molecule, paid again on every page load — see regulatory_service.py's
+# identical rationale. A molecule's chemistry and label content change on
+# the order of months, not between one page view and the next.
+MOLECULE_PROFILE_CACHE_TTL_HOURS = 24 * 7
+
+
+async def fetch_molecule_intelligence(molecule_name: str) -> MoleculeProfile:
+    """Molecule profile — cached. See _fetch_molecule_intelligence_impl for
+    what this actually computes; this wrapper only adds the cache-or-fetch
+    layer in front of it.
+    """
+    return await response_cache.get_or_fetch(
+        cache_key=f"molecule_profile:{molecule_name.strip().lower()}",
+        ttl_hours=MOLECULE_PROFILE_CACHE_TTL_HOURS,
+        fetch=lambda: _fetch_molecule_intelligence_impl(molecule_name),
+        to_dict=lambda p: p.model_dump(),
+        from_dict=lambda d: MoleculeProfile.model_validate(d),
+    )

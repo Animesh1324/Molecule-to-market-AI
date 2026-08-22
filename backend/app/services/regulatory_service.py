@@ -3,6 +3,7 @@ from typing import Dict, Any, List, Optional
 
 from ..models.regulatory import RegulatoryIntelligence, RegulatoryAgencyInfo
 from .openfda_regulatory import fetch_us_fda_profile
+from . import response_cache
 
 logger = logging.getLogger(__name__)
 
@@ -374,7 +375,7 @@ def _unavailable(agency: str, url: str, reason: str) -> RegulatoryAgencyInfo:
     )
 
 
-async def fetch_regulatory_intelligence(molecule_name: str) -> RegulatoryIntelligence:
+async def _fetch_regulatory_intelligence_impl(molecule_name: str) -> RegulatoryIntelligence:
     """Regulatory dossier across US FDA, CDSCO, and EMA.
 
     Three layers, in order of authority:
@@ -467,4 +468,28 @@ async def fetch_regulatory_intelligence(molecule_name: str) -> RegulatoryIntelli
             "regulator's published label; it is not a promotional claim and has not "
             "been reviewed for fair balance in any market."
         ),
+    )
+
+
+# openFDA's own live latency (2-5s per query, entirely outside this app's
+# control) is paid again on every page load of the same molecule, even though
+# a drug's label and application history change on the order of months, not
+# between one page view and the next. Cached for a week — long enough to
+# remove that cost from every repeat view, short enough that a real label
+# update is never stale for long.
+REGULATORY_CACHE_TTL_HOURS = 24 * 7
+
+
+async def fetch_regulatory_intelligence(molecule_name: str) -> RegulatoryIntelligence:
+    """Regulatory dossier across US FDA, CDSCO, and EMA — cached.
+
+    See _fetch_regulatory_intelligence_impl for what this actually computes;
+    this wrapper only adds the cache-or-fetch layer in front of it.
+    """
+    return await response_cache.get_or_fetch(
+        cache_key=f"regulatory:{molecule_name.strip().lower()}",
+        ttl_hours=REGULATORY_CACHE_TTL_HOURS,
+        fetch=lambda: _fetch_regulatory_intelligence_impl(molecule_name),
+        to_dict=lambda r: r.model_dump(),
+        from_dict=lambda d: RegulatoryIntelligence.model_validate(d),
     )

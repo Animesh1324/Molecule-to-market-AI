@@ -78,6 +78,7 @@ def init_db():
     from . import fda_catalog_models  # noqa: F401
     from . import manual_competitor_models  # noqa: F401
     from . import user_models  # noqa: F401
+    from . import response_cache_models  # noqa: F401
     from . import orange_book_models  # noqa: F401
 
     Base.metadata.create_all(bind=engine)
