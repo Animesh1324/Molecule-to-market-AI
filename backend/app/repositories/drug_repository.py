@@ -39,8 +39,29 @@ def _now() -> str:
     return datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S")
 
 
+# PostgreSQL refuses a btree index entry over roughly 2704 bytes, and
+# search_blob carries one. Six of the bulk-loaded rows exceeded it — multi-
+# ingredient homeopathic products whose ingredient list runs to thousands of
+# characters — which raises on INSERT under Postgres while SQLite, having no
+# such limit, accepts them silently. Capped well under the limit so multi-byte
+# characters cannot push an entry over it.
+SEARCH_BLOB_MAX_BYTES = 2000
+
+
+def _truncate_bytes(text: str, limit: int) -> str:
+    """Cut to `limit` UTF-8 bytes without splitting a character."""
+    encoded = text.encode("utf-8")
+    if len(encoded) <= limit:
+        return text
+    return encoded[:limit].decode("utf-8", "ignore")
+
+
 def _search_blob(record_like: Dict[str, Any]) -> str:
-    """Lower-cased haystack covering every field a user might search on."""
+    """Lower-cased haystack covering every field a user might search on.
+
+    Ordered most- to least-identifying, so if the cap truncates anything it is
+    the tail of a long ingredient list rather than the drug's own name.
+    """
     parts: List[str] = []
     for key in ("generic_name", "brand_name", "drug_class", "therapeutic_class", "manufacturer"):
         value = record_like.get(key)
@@ -48,7 +69,7 @@ def _search_blob(record_like: Dict[str, Any]) -> str:
             parts.append(str(value))
     for key in LIST_FIELDS:
         parts.extend(str(v) for v in (record_like.get(key) or []))
-    return " ".join(parts).lower()
+    return _truncate_bytes(" ".join(parts).lower(), SEARCH_BLOB_MAX_BYTES)
 
 
 def to_dict(orm: DrugORM) -> Dict[str, Any]:

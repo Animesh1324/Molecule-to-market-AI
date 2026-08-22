@@ -172,3 +172,123 @@ def test_exclusivity_same_code_different_dates_kept():
 def test_absent_archive_raises():
     with pytest.raises(ob.OrangeBookUnavailable):
         ob.ingest(b"")
+
+
+def test_one_bad_row_does_not_abort_the_rest():
+    """A failing row must roll back only itself.
+
+    On PostgreSQL a failed statement invalidates the whole transaction, so
+    without the per-row SAVEPOINT every subsequent write would fail while the
+    counters still reported success. Asserting the later rows land is what
+    pins that.
+    """
+    _clean()
+    products = (
+        "Ingredient~DF;Route~Trade_Name~Applicant~Strength~Appl_Type~Appl_No~Product_No~"
+        "TE_Code~Approval_Date~RLD~RS~Type~Applicant_Full_Name\n"
+        "GOOD ONE~TABLET;ORAL~FIRST~X~1MG~N~111111~001~AB~Jan 1, 2001~Yes~Yes~RX~X\n"
+        "BAD~TABLET;ORAL~SECOND~X~1MG~N~222222~001~AB~Jan 1, 2002~Yes~Yes~RX~X\n"
+        "GOOD TWO~TABLET;ORAL~THIRD~X~1MG~N~333333~001~AB~Jan 1, 2003~Yes~Yes~RX~X\n"
+    )
+    real_key = ob._key
+
+    def exploding_key(*parts):
+        if "222222" in [str(p) for p in parts]:
+            raise RuntimeError("simulated write failure")
+        return real_key(*parts)
+
+    ob._key = exploding_key
+    try:
+        result = ob.ingest(_archive(products=products, patents="", exclusivity=""))
+    finally:
+        ob._key = real_key
+
+    assert result.failed == 1
+    assert result.products == 2
+    s = SessionLocal()
+    names = {r.trade_name for r in s.query(OrangeBookProductORM).all()}
+    s.close()
+    # THIRD is the one that proves the transaction survived the failure.
+    assert names == {"FIRST", "THIRD"}
+
+
+def test_rows_are_written_inside_savepoints():
+    """Assert the SAVEPOINT is actually emitted, not just that rows land.
+
+    The behavioural test above cannot pin this: SQLite does not invalidate a
+    transaction on a failed statement, so it passes whether or not the
+    savepoint exists. Only PostgreSQL would show the difference, and the suite
+    does not run against it. So this checks the mechanism directly — SQLAlchemy
+    emits SAVEPOINT for begin_nested() on every backend, including SQLite.
+    """
+    from sqlalchemy import event
+
+    from app.db.database import engine
+
+    statements = []
+
+    def record(conn, cursor, statement, params, context, executemany):
+        statements.append(statement)
+
+    _clean()
+    event.listen(engine, "before_cursor_execute", record)
+    try:
+        ob.ingest(_archive())
+    finally:
+        event.remove(engine, "before_cursor_execute", record)
+
+    savepoints = [s for s in statements if s.strip().upper().startswith("SAVEPOINT")]
+    # One per row written: 1 product + 2 patents + 1 exclusivity.
+    assert len(savepoints) == 4, f"expected 4 SAVEPOINTs, saw {len(savepoints)}"
+
+
+def test_a_database_error_rolls_back_only_its_own_row():
+    """The real failure mode: an error raised by the DATABASE, not by Python.
+
+    merge() only stages a row; the INSERT is emitted at flush. An earlier
+    version of this fix wrapped merge() alone, so the failing statement landed
+    outside the savepoint and would still have poisoned a PostgreSQL
+    transaction. Forcing a NOT NULL violation reproduces a genuine driver-level
+    error, which a pure-Python exception does not.
+    """
+    from sqlalchemy import event
+
+    from app.db.database import engine
+
+    products = (
+        "Ingredient~DF;Route~Trade_Name~Applicant~Strength~Appl_Type~Appl_No~Product_No~"
+        "TE_Code~Approval_Date~RLD~RS~Type~Applicant_Full_Name\n"
+        "GOOD ONE~TABLET;ORAL~FIRST~X~1MG~N~111111~001~AB~Jan 1, 2001~Yes~Yes~RX~X\n"
+        "BAD~TABLET;ORAL~SECOND~X~1MG~N~222222~001~AB~Jan 1, 2002~Yes~Yes~RX~X\n"
+        "GOOD TWO~TABLET;ORAL~THIRD~X~1MG~N~333333~001~AB~Jan 1, 2003~Yes~Yes~RX~X\n"
+    )
+    real_key = ob._key
+
+    def null_pk_for_the_bad_row(*parts):
+        if "222222" in [str(p) for p in parts]:
+            return None          # NOT NULL primary key -> driver-level IntegrityError
+        return real_key(*parts)
+
+    statements = []
+
+    def record(conn, cursor, statement, params, context, executemany):
+        statements.append(statement.strip().upper())
+
+    _clean()
+    ob._key = null_pk_for_the_bad_row
+    event.listen(engine, "before_cursor_execute", record)
+    try:
+        result = ob.ingest(_archive(products=products, patents="", exclusivity=""))
+    finally:
+        event.remove(engine, "before_cursor_execute", record)
+        ob._key = real_key
+
+    assert result.failed == 1
+    assert result.products == 2
+    s = SessionLocal()
+    names = {r.trade_name for r in s.query(OrangeBookProductORM).all()}
+    s.close()
+    # THIRD proves the transaction stayed usable after a real driver error.
+    assert names == {"FIRST", "THIRD"}
+    assert any(st.startswith("ROLLBACK TO SAVEPOINT") for st in statements), \
+        "the failing row must roll its own savepoint back"

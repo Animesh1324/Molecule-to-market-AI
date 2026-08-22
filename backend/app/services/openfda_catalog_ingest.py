@@ -219,14 +219,29 @@ def ingest_dataset(
             try:
                 for raw in iter_json_array(json_path):
                     result.read += 1
+                    # SAVEPOINT per row. PostgreSQL invalidates the entire
+                    # transaction when any statement fails, so catching an
+                    # exception and continuing — correct on SQLite — would let
+                    # every later statement fail too, while these counters
+                    # happily reported success. The nested block rolls back
+                    # just the bad row and leaves the transaction usable.
+                    written: List[str] = []
                     try:
-                        for orm_class, pk, values in mapper(raw, partition.export_date):
-                            session.merge(orm_class(**pk, **values))
-                            result.bump(orm_class.__tablename__)
-                            pending += 1
+                        with session.begin_nested():
+                            for orm_class, pk, values in mapper(raw, partition.export_date):
+                                session.merge(orm_class(**pk, **values))
+                                written.append(orm_class.__tablename__)
+                            # Inside the savepoint: merge only stages the row,
+                            # the INSERT lands at flush. Flushing after the
+                            # block would put the failing statement outside it.
+                            session.flush()
                     except Exception:  # noqa: BLE001 - one bad row is not a failed load
                         result.failed += 1
                         logger.debug("row failed in %s", dataset, exc_info=True)
+                    else:
+                        for table in written:
+                            result.bump(table)
+                        pending += len(written)
                     if pending >= BATCH:
                         session.commit()
                         pending = 0

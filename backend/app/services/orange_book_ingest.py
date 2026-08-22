@@ -31,6 +31,10 @@ logger = logging.getLogger(__name__)
 BATCH = 500
 
 
+# Each row is written inside a SAVEPOINT. PostgreSQL invalidates the whole
+# transaction on any failed statement, so catching per row and continuing —
+# which is correct on SQLite — would silently fail every subsequent write while
+# the counters still reported success.
 class OrangeBookUnavailable(RuntimeError):
     """The Orange Book archive could not be loaded."""
 
@@ -92,12 +96,37 @@ def _rows(archive: zipfile.ZipFile, filename: str) -> List[dict]:
     return list(csv.DictReader(raw, delimiter="~"))
 
 
+def _merge_row(session, result: "OrangeBookResult", build) -> bool:
+    """Merge one row inside a SAVEPOINT, returning whether it was written.
+
+    PostgreSQL invalidates the entire transaction when any statement fails, so
+    catching an exception and continuing — which is correct on SQLite — would
+    let every subsequent write fail too while these counters still reported
+    success. The savepoint rolls back only the offending row.
+    """
+    try:
+        with session.begin_nested():
+            session.merge(build())
+            # flush inside the savepoint, not after it. merge() only stages the
+            # row; the INSERT is emitted at flush time. Without this the
+            # statement that actually fails — a constraint or index violation —
+            # would land outside the savepoint, poison the transaction on
+            # PostgreSQL, and defeat the whole point of wrapping the row.
+            session.flush()
+        return True
+    except Exception:  # noqa: BLE001 - one bad row must not fail the load
+        result.failed += 1
+        logger.debug("orange book row failed", exc_info=True)
+        return False
+
+
 def ingest(archive_bytes: Optional[bytes] = None,
            progress: Optional[Callable[[OrangeBookResult], None]] = None) -> OrangeBookResult:
     """Load products, patents and exclusivity into their tables.
 
-    Rows key on (appl_type, appl_no, product_no[, patent_no|code]), so
-    re-running after FDA's monthly refresh updates rather than duplicating.
+    Rows key on (appl_type, appl_no, product_no[, patent_no + use code |
+    exclusivity code + date]), so re-running after FDA's monthly refresh
+    updates rather than duplicating.
     """
     data = archive_bytes if archive_bytes is not None else _load_archive()
     if not data:
@@ -106,110 +135,103 @@ def ingest(archive_bytes: Optional[bytes] = None,
     result = OrangeBookResult()
     session = SessionLocal()
     pending = 0
+
+    def flush(force: bool = False) -> None:
+        nonlocal pending
+        if force or pending >= BATCH:
+            session.commit()
+            pending = 0
+            if progress:
+                progress(result)
+
     try:
         with zipfile.ZipFile(io.BytesIO(data)) as archive:
             names = set(archive.namelist())
 
             for row in _rows(archive, "products.txt") if "products.txt" in names else []:
-                try:
-                    appl_no, prod_no = row.get("Appl_No"), row.get("Product_No")
-                    approval = row.get("Approval_Date")
-                    iso = _iso(approval)
-                    if _is_sentinel(approval):
-                        result.legacy_approvals += 1
-                    if approval and not iso and not _is_sentinel(approval):
-                        result.unparsed_dates += 1
-                    session.merge(OrangeBookProductORM(
-                        id=_key(row.get("Appl_Type"), appl_no, prod_no),
-                        appl_type=_clean(row.get("Appl_Type"), 10),
-                        appl_no=_clean(appl_no, 20) or "",
-                        product_no=_clean(prod_no, 20),
-                        ingredient=_clean(row.get("Ingredient"), 400),
-                        trade_name=_clean(row.get("Trade_Name"), 300),
-                        applicant=_clean(row.get("Applicant"), 300),
-                        applicant_full_name=_clean(row.get("Applicant_Full_Name"), 400),
-                        strength=_clean(row.get("Strength"), 1000),
-                        dosage_form_route=_clean(row.get("DF;Route"), 300),
-                        te_code=_clean(row.get("TE_Code"), 20),
-                        approval_date=_clean(approval, 50),
-                        approval_date_iso=iso,
-                        rld=_clean(row.get("RLD"), 10),
-                        rs=_clean(row.get("RS"), 10),
-                        marketing_type=_clean(row.get("Type"), 30),
-                    ))
+                approval = row.get("Approval_Date")
+                iso = _iso(approval)
+                if _is_sentinel(approval):
+                    result.legacy_approvals += 1
+                elif approval and not iso:
+                    result.unparsed_dates += 1
+                if _merge_row(session, result, lambda row=row, iso=iso, approval=approval: OrangeBookProductORM(
+                    id=_key(row.get("Appl_Type"), row.get("Appl_No"), row.get("Product_No")),
+                    appl_type=_clean(row.get("Appl_Type"), 10),
+                    appl_no=_clean(row.get("Appl_No"), 20) or "",
+                    product_no=_clean(row.get("Product_No"), 20),
+                    ingredient=_clean(row.get("Ingredient"), 400),
+                    trade_name=_clean(row.get("Trade_Name"), 300),
+                    applicant=_clean(row.get("Applicant"), 300),
+                    applicant_full_name=_clean(row.get("Applicant_Full_Name"), 400),
+                    strength=_clean(row.get("Strength"), 1000),
+                    dosage_form_route=_clean(row.get("DF;Route"), 300),
+                    te_code=_clean(row.get("TE_Code"), 20),
+                    approval_date=_clean(approval, 50),
+                    approval_date_iso=iso,
+                    rld=_clean(row.get("RLD"), 10),
+                    rs=_clean(row.get("RS"), 10),
+                    marketing_type=_clean(row.get("Type"), 30),
+                )):
                     result.products += 1
                     pending += 1
-                except Exception:  # noqa: BLE001
-                    result.failed += 1
-                if pending >= BATCH:
-                    session.commit(); pending = 0
-                    if progress: progress(result)
+                flush()
 
             for row in _rows(archive, "patent.txt") if "patent.txt" in names else []:
-                try:
-                    expire = row.get("Patent_Expire_Date_Text")
-                    iso = _iso(expire)
-                    if expire and not iso:
-                        result.unparsed_dates += 1
-                    session.merge(OrangeBookPatentORM(
-                        # Use code belongs in the key: FDA lists one patent
-                        # against a product once per covered indication, and
-                        # those rows differ only by Patent_Use_Code. Dropping it
-                        # collapsed 4,635 rows and with them the per-indication
-                        # detail that skinny-label carve-outs turn on.
-                        id=_key(row.get("Appl_Type"), row.get("Appl_No"),
-                                row.get("Product_No"), row.get("Patent_No"),
-                                row.get("Patent_Use_Code")),
-                        appl_type=_clean(row.get("Appl_Type"), 10),
-                        appl_no=_clean(row.get("Appl_No"), 20) or "",
-                        product_no=_clean(row.get("Product_No"), 20),
-                        patent_no=_clean(row.get("Patent_No"), 40),
-                        patent_expire_date=_clean(expire, 50),
-                        patent_expire_date_iso=iso,
-                        drug_substance_flag=_clean(row.get("Drug_Substance_Flag"), 10),
-                        drug_product_flag=_clean(row.get("Drug_Product_Flag"), 10),
-                        patent_use_code=_clean(row.get("Patent_Use_Code"), 40),
-                        delist_flag=_clean(row.get("Delist_Flag"), 10),
-                        submission_date=_clean(row.get("Submission_Date"), 50),
-                    ))
+                expire = row.get("Patent_Expire_Date_Text")
+                iso = _iso(expire)
+                if expire and not iso:
+                    result.unparsed_dates += 1
+                if _merge_row(session, result, lambda row=row, iso=iso, expire=expire: OrangeBookPatentORM(
+                    # Use code belongs in the key: FDA lists one patent against
+                    # a product once per covered indication, and those rows
+                    # differ only by Patent_Use_Code. Dropping it collapsed
+                    # 4,635 rows and with them the per-indication detail that
+                    # skinny-label carve-outs turn on.
+                    id=_key(row.get("Appl_Type"), row.get("Appl_No"),
+                            row.get("Product_No"), row.get("Patent_No"),
+                            row.get("Patent_Use_Code")),
+                    appl_type=_clean(row.get("Appl_Type"), 10),
+                    appl_no=_clean(row.get("Appl_No"), 20) or "",
+                    product_no=_clean(row.get("Product_No"), 20),
+                    patent_no=_clean(row.get("Patent_No"), 40),
+                    patent_expire_date=_clean(expire, 50),
+                    patent_expire_date_iso=iso,
+                    drug_substance_flag=_clean(row.get("Drug_Substance_Flag"), 10),
+                    drug_product_flag=_clean(row.get("Drug_Product_Flag"), 10),
+                    patent_use_code=_clean(row.get("Patent_Use_Code"), 40),
+                    delist_flag=_clean(row.get("Delist_Flag"), 10),
+                    submission_date=_clean(row.get("Submission_Date"), 50),
+                )):
                     result.patents += 1
                     pending += 1
-                except Exception:  # noqa: BLE001
-                    result.failed += 1
-                if pending >= BATCH:
-                    session.commit(); pending = 0
-                    if progress: progress(result)
+                flush()
 
             for row in _rows(archive, "exclusivity.txt") if "exclusivity.txt" in names else []:
-                try:
-                    date = row.get("Exclusivity_Date")
-                    iso = _iso(date)
-                    if date and not iso:
-                        result.unparsed_dates += 1
-                    session.merge(OrangeBookExclusivityORM(
-                        # Date included: one product can carry the same
-                        # exclusivity code with different expiry dates. Rows
-                        # identical across all five fields are true duplicates
-                        # in FDA's file and do collapse, correctly.
-                        id=_key(row.get("Appl_Type"), row.get("Appl_No"),
-                                row.get("Product_No"), row.get("Exclusivity_Code"),
-                                row.get("Exclusivity_Date")),
-                        appl_type=_clean(row.get("Appl_Type"), 10),
-                        appl_no=_clean(row.get("Appl_No"), 20) or "",
-                        product_no=_clean(row.get("Product_No"), 20),
-                        exclusivity_code=_clean(row.get("Exclusivity_Code"), 40),
-                        exclusivity_date=_clean(date, 50),
-                        exclusivity_date_iso=iso,
-                    ))
+                date = row.get("Exclusivity_Date")
+                iso = _iso(date)
+                if date and not iso:
+                    result.unparsed_dates += 1
+                if _merge_row(session, result, lambda row=row, iso=iso, date=date: OrangeBookExclusivityORM(
+                    # Date included: one product can carry the same exclusivity
+                    # code with different expiry dates. Rows identical across
+                    # all five fields are true duplicates in FDA's file and do
+                    # collapse, correctly.
+                    id=_key(row.get("Appl_Type"), row.get("Appl_No"),
+                            row.get("Product_No"), row.get("Exclusivity_Code"),
+                            row.get("Exclusivity_Date")),
+                    appl_type=_clean(row.get("Appl_Type"), 10),
+                    appl_no=_clean(row.get("Appl_No"), 20) or "",
+                    product_no=_clean(row.get("Product_No"), 20),
+                    exclusivity_code=_clean(row.get("Exclusivity_Code"), 40),
+                    exclusivity_date=_clean(date, 50),
+                    exclusivity_date_iso=iso,
+                )):
                     result.exclusivity += 1
                     pending += 1
-                except Exception:  # noqa: BLE001
-                    result.failed += 1
-                if pending >= BATCH:
-                    session.commit(); pending = 0
-                    if progress: progress(result)
+                flush()
 
-        session.commit()
+        flush(force=True)
         return result
     finally:
         session.close()

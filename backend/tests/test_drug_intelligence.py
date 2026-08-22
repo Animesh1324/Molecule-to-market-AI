@@ -457,3 +457,31 @@ def test_search_completeness_never_overrides_name_relevance():
     rows, _ = repo.search_drugs("exactonel", page_size=10)
     # Exact name wins despite carrying no label content.
     assert rows[0]["generic_name"] == "Exactonel"
+
+
+def test_search_blob_stays_under_the_postgres_btree_limit():
+    """search_blob carries a btree index; Postgres caps an entry near 2704 bytes.
+
+    Six bulk-loaded rows exceeded it — multi-ingredient homeopathic products
+    with enormous ingredient lists. SQLite has no such limit and accepted them
+    silently, so this would only have surfaced as an INSERT failure in
+    production.
+    """
+    from app.repositories.drug_repository import SEARCH_BLOB_MAX_BYTES, _search_blob
+
+    blob = _search_blob({
+        "generic_name": "Echinacea, Baptisia Tinctoria, Hydrastis Canadensis, Myrrha",
+        "brand_name": "Testonel",
+        "active_ingredients": [f"Ingredient Number {n} Extract" for n in range(400)],
+        "dosage_forms": ["LIQUID"] * 200,
+    })
+    assert len(blob.encode("utf-8")) <= SEARCH_BLOB_MAX_BYTES
+    assert SEARCH_BLOB_MAX_BYTES < 2704
+    # Identity survives truncation - the name is written before the long lists.
+    assert blob.startswith("echinacea")
+
+
+def test_search_blob_truncation_does_not_split_a_character():
+    from app.repositories.drug_repository import _search_blob
+    blob = _search_blob({"generic_name": "é" * 3000})
+    blob.encode("utf-8").decode("utf-8")     # would raise if a char were split
