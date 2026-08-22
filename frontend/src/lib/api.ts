@@ -203,6 +203,7 @@ export async function fetchBrandPlan(params: {
   therapy_area?: string;
   indication?: string;
   target_geography?: string;
+  refresh?: boolean;
 }): Promise<CompleteBrandPlan> {
   const q = new URLSearchParams({
     project_id: params.project_id,
@@ -212,6 +213,7 @@ export async function fetchBrandPlan(params: {
     target_geography: params.target_geography || 'Global'
   });
   if (params.brand_name) q.append('brand_name', params.brand_name);
+  if (params.refresh) q.append('refresh', 'true');
 
   const res = await fetch(`${API_BASE}/api/brand-plan/generate?${q.toString()}`, { headers: authHeaders() });
   if (!res.ok) throw await apiError(res, 'Failed to generate brand plan');

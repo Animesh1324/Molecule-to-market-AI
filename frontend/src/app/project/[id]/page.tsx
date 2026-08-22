@@ -23,7 +23,8 @@ import {
   RefreshCw,
   Award,
   Plus,
-  ClipboardList
+  ClipboardList,
+  Loader2
 } from 'lucide-react';
 import Link from 'next/link';
 import Navbar from '../../../components/Navbar';
@@ -132,6 +133,7 @@ export default function ProjectWorkspacePage() {
   const [tmLoading, setTmLoading] = useState(false);
   const [visualAidBrief, setVisualAidBrief] = useState<VisualAidBrief | null>(null);
   const [visualAidLoading, setVisualAidLoading] = useState(false);
+  const [brandPlanRegenLoading, setBrandPlanRegenLoading] = useState(false);
   const [cdsco, setCdsco] = useState<CDSCOIntelligence | null>(null);
 
   // Loading states
@@ -360,6 +362,27 @@ export default function ProjectWorkspacePage() {
       console.error(e);
     } finally {
       setVisualAidLoading(false);
+    }
+  };
+
+  const handleRegenerateBrandPlan = async () => {
+    if (!project) return;
+    setBrandPlanRegenLoading(true);
+    try {
+      const result = await fetchBrandPlan({
+        project_id: project.id,
+        molecule: project.target_molecule_name,
+        brand_name: project.brand_working_name,
+        therapy_area: project.therapy_area,
+        indication: project.primary_indication,
+        target_geography: project.target_geography,
+        refresh: true,
+      });
+      setBrandPlan(result);
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setBrandPlanRegenLoading(false);
     }
   };
 
@@ -1738,6 +1761,15 @@ export default function ProjectWorkspacePage() {
                 <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">Complete commercial and medical plan for {brandDisplayName} ({project.target_molecule_name})</p>
               </div>
               <div className="flex items-center space-x-2">
+                <button
+                  onClick={handleRegenerateBrandPlan}
+                  disabled={brandPlanRegenLoading}
+                  title="Discards the saved plan and rebuilds it — drafts fresh narrative with Claude if an API key is configured"
+                  className="flex items-center space-x-1.5 px-4 py-2 rounded-xl border border-slate-200 dark:border-slate-700 hover:border-brand-500 hover:text-brand-500 disabled:opacity-50 text-slate-600 dark:text-slate-300 text-xs font-semibold transition"
+                >
+                  {brandPlanRegenLoading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <RefreshCw className="w-3.5 h-3.5" />}
+                  <span>Regenerate with AI</span>
+                </button>
                 <a
                   href={getExportDocxUrl(project.target_molecule_name, brandDisplayName, project.therapy_area, project.primary_indication, project.id)}
                   className="flex items-center space-x-1.5 px-4 py-2 rounded-xl bg-brand-600 hover:bg-brand-500 text-slate-900 dark:text-white text-xs font-semibold transition shadow-md shadow-brand-500/20"
