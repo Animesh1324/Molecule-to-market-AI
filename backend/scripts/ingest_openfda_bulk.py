@@ -31,14 +31,16 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from app.db.database import init_db  # noqa: E402
 from app.services import openfda_bulk_ingest as bulk  # noqa: E402
 from app.services import openfda_catalog_ingest as catalog  # noqa: E402
+from app.services import orange_book_ingest as orangebook  # noqa: E402
 
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    parser.add_argument("--datasets", default="ndc,label,drugsfda,enforcement,shortages",
+    parser.add_argument("--datasets", default="ndc,label,drugsfda,enforcement,shortages,orangebook",
                         help="comma-separated openFDA drug datasets. ndc/label build the drug "
                              "catalogue; drugsfda/enforcement/shortages fill the FDA catalogue "
-                             "tables (default: all five)")
+                             "tables; orangebook loads FDA's own zip with patents and "
+                             "exclusivity (default: all six)")
     parser.add_argument("--limit", type=int, default=None,
                         help="stop after N records per dataset (for a dev slice)")
     parser.add_argument("--max-partitions", type=int, default=None,
@@ -58,13 +60,11 @@ def main() -> int:
     requested = [d.strip() for d in args.datasets.split(",") if d.strip()]
     drug_sets = [d for d in requested if d in ("ndc", "label")]
     catalog_sets = [d for d in requested if d in catalog.CATALOG_DATASETS]
-    unknown = [d for d in requested if d not in ("ndc", "label") and d not in catalog.CATALOG_DATASETS]
+    want_orangebook = "orangebook" in requested
+    unknown = [d for d in requested
+               if d not in ("ndc", "label", "orangebook") and d not in catalog.CATALOG_DATASETS]
     if unknown:
-        parser.error(
-            f"no bulk mapper for: {', '.join(unknown)}. "
-            "Orange Book is loaded separately by services/orange_book.py from FDA's own zip, "
-            "which carries patent and exclusivity data that openFDA's orangebook dataset lacks."
-        )
+        parser.error(f"no bulk mapper for: {', '.join(unknown)}")
 
     init_db()
 
@@ -110,6 +110,18 @@ def main() -> int:
               f"written={result.written:<8,} unidentifiable={result.unidentifiable:<8,} "
               f"skipped={result.skipped:<5,} failed={result.failed:,}")
         if result.read == 0:
+            failed_any = True
+
+    if want_orangebook:
+        # Sourced from FDA's own zip, not openFDA's orangebook dataset, which
+        # carries neither patent.txt nor exclusivity.txt.
+        try:
+            ob = orangebook.ingest()
+            print(f"  {'orangebook':11s} products={ob.products:<7,} patents={ob.patents:<7,} "
+                  f"exclusivity={ob.exclusivity:<6,} pre-1982={ob.legacy_approvals:,} "
+                  f"unparsed_dates={ob.unparsed_dates:,} failed={ob.failed:,}")
+        except orangebook.OrangeBookUnavailable as exc:
+            print(f"  orangebook  FAILED: {exc}")
             failed_any = True
 
     for dataset, cresult in catalog_results.items():

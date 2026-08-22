@@ -256,11 +256,42 @@ First-approval lookups verified against the four curated molecules: Eliquis
 NDA202155 (2012-12-28), Jardiance NDA204629 (2014-08-01), Ozempic NDA209637
 (2017-12-05), Keytruda BLA125514 (2014-09-04).
 
-**Orange Book is deliberately not loaded from openFDA.** `services/orange_book.py`
-already ingests FDA's own Orange Book zip, which carries `patent.txt` and
-`exclusivity.txt`. openFDA's `orangebook` dataset has neither — it stops at
-therapeutic equivalence codes — so loading it would replace a better source
-with a worse one. The CLI rejects `--datasets orangebook` and says so.
+### Orange Book
+
+Sourced from FDA's own zip, never openFDA's `orangebook` dataset — that one
+carries neither `patent.txt` nor `exclusivity.txt`, stopping at therapeutic
+equivalence codes, so it cannot answer the question these tables exist for.
+
+`services/orange_book.py` parses the same zip but only into a process-global
+dict rebuilt on demand, which cannot be joined, sorted, or filtered.
+`orange_book_ingest.py` persists it:
+
+| Table | Rows |
+| --- | --- |
+| `orange_book_products` | 48,664 |
+| `orange_book_patents` | 22,205 |
+| `orange_book_exclusivity` | 2,296 |
+
+```bash
+./.venv/bin/python scripts/ingest_openfda_bulk.py --datasets orangebook
+```
+
+This is the only source in the application that answers **when a molecule loses
+exclusivity**. Verified: Jardiance 27 patents to 2034-12-11, Ozempic 41 to
+2041-02-17, atorvastatin 100 AB-rated generics already approved. Pembrolizumab
+correctly returns none — biologics are in the Purple Book, not the Orange Book.
+
+Two parsing details that cost real data when got wrong:
+
+* **Patents key on `Patent_Use_Code`.** FDA lists one patent against a product
+  once per covered indication; those rows differ only by use code. Keying
+  without it collapsed 4,635 of 22,205 rows and lost the per-indication detail
+  skinny-label carve-outs depend on.
+* **Dates are stored twice** — FDA's display string and an ISO normalisation
+  for sorting. The ISO column is NULL when the text will not parse, never a
+  fallback date, because a wrong expiry silently shifts an LOE forecast.
+  `Approved Prior to Jan 1, 1982` is a real FDA sentinel on 5,873 products and
+  is counted separately rather than as a parse failure.
 
 **FAERS (`drug/event`) is not loaded.** 20.7 million reports, ~114 GB. That
 needs a deliberate decision about storage and sampling, not a default load.
