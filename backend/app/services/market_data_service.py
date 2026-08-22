@@ -761,12 +761,38 @@ def search_brands(query: str, limit: int = 30) -> List[Dict[str, Any]]:
 
 
 def molecule_overview(molecule: str) -> Dict[str, Any]:
-    """One call for the market panel: size, brands, companies, class rivals."""
+    """One call for the market panel: size, brands, companies, class rivals.
+
+    `companies` is the display leaderboard and is capped; `total_companies` is
+    the real count. Callers must not infer one from the other — reading
+    len(companies) as the total reported 15 companies for a molecule with 149.
+    """
     competitors = brand_competitors(molecule)
+    leaderboard = company_leaderboard(molecule)
     return {
         **competitors,
-        "companies": company_leaderboard(molecule),
+        "companies": leaderboard,
+        "total_companies": count_companies(molecule),
         "class": class_competitors(molecule),
         "datasets": list_datasets(),
         "has_data": bool(competitors.get("brands")),
     }
+
+
+def count_companies(molecule: str) -> int:
+    """How many companies market this molecule, ignoring any display cap."""
+    condition, _ = _molecule_filter(molecule)
+    if condition is None:
+        return 0
+    session = SessionLocal()
+    try:
+        dataset_id = active_dataset_id(session, condition)
+        if dataset_id is None:
+            return 0
+        return (session.query(func.count(func.distinct(MarketBrandORM.company)))
+                .filter(condition,
+                        MarketBrandORM.dataset_id == dataset_id,
+                        MarketBrandORM.company.isnot(None))
+                .scalar() or 0)
+    finally:
+        session.close()

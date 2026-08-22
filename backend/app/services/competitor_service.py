@@ -221,7 +221,7 @@ def generate_competitor_intelligence(
         market_size_prev=overview.get("market_size_prev") if market_brands else None,
         market_growth_percent=overview.get("market_growth_percent"),
         total_brands=int(overview.get("total_brands") or 0),
-        total_companies=len(companies),
+        total_companies=int(overview.get("total_companies") or len(companies)),
         therapy_group=class_block.get("group"),
         group_value=class_block.get("group_value"),
         source_files=source_files if market_brands else [],

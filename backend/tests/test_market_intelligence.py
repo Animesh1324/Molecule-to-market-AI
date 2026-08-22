@@ -292,3 +292,14 @@ def test_company_and_class_views_use_the_same_period(two_periods):
     companies = market.company_leaderboard("Semaglutide")
     assert {c["company"] for c in companies} == {"ABBOTT", "DR REDDYS"}
     assert sum(c["market_share_percent"] for c in companies) == pytest.approx(100.0, abs=0.1)
+
+
+def test_company_total_is_not_the_display_cap(ingested):
+    """The leaderboard is capped for display; the total must be the real count.
+
+    Reading len(companies) as the total made Module 6 report "15 companies" for
+    a molecule marketed by 149.
+    """
+    overview = market.molecule_overview("Empagliflozin")
+    assert overview["total_companies"] == market.count_companies("Empagliflozin")
+    assert overview["total_companies"] >= len(overview["companies"])
