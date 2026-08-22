@@ -108,3 +108,50 @@ def test_every_section_names_a_source():
     assert d["exclusivity"]["source"]["url"]
     assert d["safety_signals"]["recalls"]["source"]["url"]
     assert d["safety_signals"]["shortages"]["source"]["url"]
+
+
+@pytest.mark.parametrize("name,expected", [
+    ("EMPAGLIFLOZIN; METFORMIN HYDROCHLORIDE", True),      # Orange Book style
+    ("Dolutegravir And Lamivudine", True),                 # NDC style
+    ("Abacavir Sulfate, Dolutegravir Sodium, Lamivudine", True),  # SPL style
+    ("Empagliflozin", False),
+    ("Metformin Hydrochloride", False),
+])
+def test_combination_detection_covers_all_three_fda_separators(name, expected):
+    """FDA uses ';', ' and ' and ',' inconsistently across its own datasets.
+
+    Missing the comma marked Triumeq single-ingredient, which would have
+    presented a three-drug HIV regimen's label as dolutegravir's own.
+    """
+    assert md._is_combination(name) is expected
+
+
+def test_clinical_text_falls_back_but_names_its_product():
+    """Some molecules have a label on no single-ingredient product at all.
+
+    Dolutegravir's mono listings are bare NDC rows; only Triumeq carries the
+    narrative. Returning nothing helps no one, but the text describes a
+    three-drug combination and must say so.
+    """
+    s = SessionLocal()
+    s.add(_drug("Dolutegravir", None))                      # no label, no class
+    s.add(_drug("Abacavir Sulfate, Dolutegravir Sodium, Lamivudine", "Triumeq",
+                "Integrase Inhibitor [EPC]", "Indicated for HIV-1 infection."))
+    s.commit(); s.close()
+
+    d = md.build_dossier("dolutegravir")
+    clinical = d["identity"]["clinical"]
+    assert clinical["indications"] == "Indicated for HIV-1 infection."
+    assert clinical["from_product"] == "Triumeq"
+    assert clinical["from_combination_product"] is True
+    # Class stays the molecule's own - never adopted from the combination.
+    assert d["identity"]["drug_class"] is None
+
+
+def test_single_ingredient_clinical_text_is_not_flagged_as_combination():
+    s = SessionLocal()
+    s.add(_drug("Testolol", "Testabrand", "Beta Blocker [EPC]", "Indicated for hypertension."))
+    s.commit(); s.close()
+    clinical = md.build_dossier("testolol")["identity"]["clinical"]
+    assert clinical["from_combination_product"] is False
+    assert clinical["from_product"] == "Testabrand"

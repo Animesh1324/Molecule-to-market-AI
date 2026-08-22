@@ -74,9 +74,17 @@ def paper_url(pmid: Optional[str], doi: Optional[str], pmcid: Optional[str]) -> 
 
 
 def _is_combination(ingredient: Optional[str]) -> bool:
-    """FDA separates co-formulated actives with ';' or ' and '."""
+    """Whether a product name lists more than one active ingredient.
+
+    FDA uses three separators inconsistently across datasets: the Orange Book
+    writes "EMPAGLIFLOZIN; METFORMIN HYDROCHLORIDE", the NDC directory writes
+    "Dolutegravir And Lamivudine", and SPL writes "Abacavir Sulfate,
+    Dolutegravir Sodium, Lamivudine". Checking only the first two marked
+    Triumeq as single-ingredient and would have presented a three-drug HIV
+    regimen's label as dolutegravir's own.
+    """
     text_value = (ingredient or "").lower()
-    return ";" in text_value or " and " in text_value
+    return ";" in text_value or " and " in text_value or "," in text_value
 
 
 def _name_rank(candidate: Optional[str], molecule: str) -> int:
@@ -113,6 +121,20 @@ def _identity(session, needle: str, molecule: str) -> Dict[str, Any]:
         r.drug_class is None,
     ))[0]
     combinations = sorted({r.generic_name for r in rows if _is_combination(r.generic_name)})
+
+    # Some molecules carry no label on any single-ingredient listing — every
+    # marketed product is a co-formulation. Dolutegravir is one: its mono rows
+    # are bare NDC entries and only Triumeq has the narrative. Preferring mono
+    # is right for identity, but returning nothing clinical helps no one, so
+    # fall back to the richest row and say plainly where the text came from.
+    clinical_row = best
+    clinical_from_combination = False
+    if best.indications is None:
+        richer = sorted(rows, key=lambda r: (r.indications is None, r.drug_class is None))[0]
+        if richer.indications is not None:
+            clinical_row = richer
+            clinical_from_combination = _is_combination(richer.generic_name)
+
     brands = sorted({r.brand_name for r in rows if r.brand_name})
     forms, routes = set(), set()
     for r in rows:
@@ -132,13 +154,18 @@ def _identity(session, needle: str, molecule: str) -> Dict[str, Any]:
         "routes": sorted(routes)[:20],
         "manufacturers": sorted({r.manufacturer for r in rows if r.manufacturer})[:30],
         "clinical": {
-            "indications": best.indications,
-            "dosage": best.dosage,
-            "contraindications": best.contraindications,
-            "warnings": best.warnings,
-            "adverse_effects": best.adverse_effects,
-            "drug_interactions": best.drug_interactions,
-            "mechanism": best.mechanism,
+            "indications": clinical_row.indications,
+            "dosage": clinical_row.dosage,
+            "contraindications": clinical_row.contraindications,
+            "warnings": clinical_row.warnings,
+            "adverse_effects": clinical_row.adverse_effects,
+            "drug_interactions": clinical_row.drug_interactions,
+            "mechanism": clinical_row.mechanism,
+            # Names the product the narrative came from. When that is a
+            # co-formulation the text describes the combination, not this
+            # molecule alone, and must not be quoted as if it did.
+            "from_product": clinical_row.brand_name or clinical_row.generic_name,
+            "from_combination_product": clinical_from_combination,
         },
         "source": {"name": "openFDA SPL label + NDC directory", "url": LABEL_URL},
     }
