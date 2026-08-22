@@ -11,6 +11,8 @@ import {
   CompleteBrandPlan,
   CreativeCommercialAssets,
   VisualAidBrief,
+  CoPilotTurn,
+  CoPilotResponse,
   MLRAuditEntry,
   MoleculeLifecycle,
   UploadedFile,
@@ -230,6 +232,23 @@ export async function fetchVisualAidBrief(molecule: string, brand_name?: string,
 
   const res = await fetch(`${API_BASE}/api/assets/visual-aid-brief?${q.toString()}`, { headers: authHeaders() });
   if (!res.ok) throw await apiError(res, 'Failed to draft the visual aid brief');
+  return res.json();
+}
+
+export async function askCoPilot(params: {
+  molecule: string;
+  brand_name: string;
+  therapy_area?: string;
+  indication?: string;
+  question: string;
+  history?: CoPilotTurn[];
+}): Promise<CoPilotResponse> {
+  const res = await fetch(`${API_BASE}/api/copilot/ask`, {
+    method: 'POST',
+    headers: authHeaders({ 'Content-Type': 'application/json' }),
+    body: JSON.stringify(params),
+  });
+  if (!res.ok) throw await apiError(res, 'AI Co-Pilot request failed');
   return res.json();
 }
 

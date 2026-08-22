@@ -21,12 +21,15 @@ export default function BrandNamesPanel({ data, onGenerate, onMoreOptions, loadi
     <div className="space-y-6">
       <div>
         <span className="text-xs font-mono uppercase tracking-wider text-brand-700 dark:text-brand-400">
-          Module 13: Brand Name Generation &amp; Screening
+          Module 12: Brand Name Generation &amp; Screening
         </span>
         <h2 className="text-2xl font-bold text-slate-900 dark:text-white mt-1">
           Candidate names for {data.molecule}
         </h2>
         <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">{data.screening_basis}</p>
+        <p className="text-[11px] text-slate-400 dark:text-slate-500 mt-1">
+          For phonetic collision checks against real competitor brands in the loaded market extract instead of the FDA Orange Book, see Module 11: Trademark &amp; Naming.
+        </p>
         {data.ai_generated && (
           <span className="inline-flex items-center gap-1 mt-2 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-brand-500/10 text-brand-600 dark:text-brand-400">
             <Sparkles className="w-3 h-3" /> AI-drafted to your requirement, screened against the Orange Book

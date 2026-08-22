@@ -7,6 +7,7 @@ from fastapi.responses import JSONResponse
 
 from .api import (
     brand_plan,
+    copilot,
     intelligence,
     lifecycle,
     competitors,
@@ -121,6 +122,7 @@ app.include_router(intelligence.router, dependencies=[Depends(require_access)])
 app.include_router(drugs.router, dependencies=[Depends(require_access)])
 app.include_router(market.router, dependencies=[Depends(require_access)])
 app.include_router(auth.router, dependencies=[Depends(require_access)])
+app.include_router(copilot.router, dependencies=[Depends(require_access)])
 
 
 @app.get("/")

@@ -12,7 +12,7 @@ export default function CDSCOPanel({ data }: { data: CDSCOIntelligence }) {
     <div className="space-y-6">
       <div>
         <span className="text-xs font-mono uppercase tracking-wider text-brand-700 dark:text-brand-400">
-          Module 14: India Regulatory (CDSCO) Checklist
+          Module 5: India Regulatory (CDSCO) Checklist
         </span>
         <h2 className="text-2xl font-bold text-slate-900 dark:text-white mt-1">
           {data.display_name}

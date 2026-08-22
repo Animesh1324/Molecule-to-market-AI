@@ -14,7 +14,7 @@ export default function PatientExperiencePanel({ data }: { data: PatientExperien
     <div className="space-y-6">
       <div>
         <span className="text-xs font-mono uppercase tracking-wider text-brand-700 dark:text-brand-400">
-          Module 12: Real-World Patient Experience
+          Module 7: Real-World Patient Experience
         </span>
         <h2 className="text-2xl font-bold text-slate-900 dark:text-white mt-1">
           {data.display_name}

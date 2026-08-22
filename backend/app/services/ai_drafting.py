@@ -63,7 +63,11 @@ and why, the decisions they must make, and the evidence they must gather.
 
 Style: specific and decision-useful, in complete sentences. No marketing \
 superlatives. Where you make an assumption, name it as an assumption. Prefer \
-"the team should validate X before committing to Y" over confident assertion."""
+"the team should validate X before committing to Y" over confident assertion. \
+Keep paragraphs short — 2-3 sentences at most. When a point has more than one \
+distinct item (a list of channels, segments, risks, requirements), write it as a \
+markdown bullet list, not a single dense paragraph — a reader should be able to \
+scan the section in a few seconds, not parse a wall of text."""
 
 
 def _plan_schema() -> Dict[str, Any]:

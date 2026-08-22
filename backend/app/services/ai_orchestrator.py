@@ -98,7 +98,18 @@ def generate_strategic_brand_plan(
             section_id="sec-1",
             section_title="1. Executive Summary & Brand Charter",
             section_category="Strategic Foundation",
-            content_markdown=f"### Brand Charter for {brand}\n\n**Molecule**: {mol}\n**Core Indication**: {indication}\n**Geography**: {target_geography}\n\nDraft the strategic ambition only after confirming label status, clinical evidence strength, unmet need, reimbursement context, and competitor claims.",
+            content_markdown=(
+                f"### Brand Charter for {brand}\n\n"
+                f"- **Molecule**: {mol}\n"
+                f"- **Core Indication**: {indication}\n"
+                f"- **Geography**: {target_geography}\n\n"
+                "Before drafting the strategic ambition, confirm:\n"
+                "- Label status\n"
+                "- Clinical evidence strength\n"
+                "- Unmet need\n"
+                "- Reimbursement context\n"
+                "- Competitor claims"
+            ),
             key_takeaways=["Draft strategy scaffold", "Requires source-backed completion"],
             citations=[{"ref": "REVIEW_REQUIRED", "note": "No automatic MLR signoff"}]
         ),
@@ -106,7 +117,15 @@ def generate_strategic_brand_plan(
             section_id="sec-2",
             section_title="2. Molecule Scientific Platform & MoA",
             section_category="Clinical Science",
-            content_markdown=f"### The Scientific Platform of {mol}\n\nInsert verified mechanism of action, pharmacodynamics, pharmacokinetics, dosing, and safety profile from approved labels and reviewed references.",
+            content_markdown=(
+                f"### The Scientific Platform of {mol}\n\n"
+                "Insert from approved labels and reviewed references:\n"
+                "- Verified mechanism of action\n"
+                "- Pharmacodynamics\n"
+                "- Pharmacokinetics\n"
+                "- Dosing\n"
+                "- Safety profile"
+            ),
             key_takeaways=["Verify MOA", "Verify PK/PD", "Verify safety"],
             citations=[{"ref": "SOURCE_NEEDED", "note": "Regulatory label and pharmacology review required"}]
         ),
@@ -114,7 +133,14 @@ def generate_strategic_brand_plan(
             section_id="sec-3",
             section_title="3. Epidemiology & Unmet Medical Need",
             section_category="Market Context",
-            content_markdown=f"### Disease Burden and Therapeutic Gaps\n\nDocument sourced epidemiology, diagnosis/treatment rates, patient journey friction, and unmet needs for {indication} in {target_geography}.",
+            content_markdown=(
+                f"### Disease Burden and Therapeutic Gaps\n\n"
+                f"Document, for {indication} in {target_geography}:\n"
+                "- Sourced epidemiology\n"
+                "- Diagnosis and treatment rates\n"
+                "- Patient journey friction points\n"
+                "- Unmet needs"
+            ),
             key_takeaways=["Add sourced patient pool", "Add treatment gap evidence"],
             citations=[{"ref": "SOURCE_NEEDED", "note": "Epidemiology source required"}]
         ),
@@ -122,7 +148,11 @@ def generate_strategic_brand_plan(
             section_id="sec-4",
             section_title="4. Landmark Clinical Evidence & Study Hierarchy",
             section_category="Clinical Science",
-            content_markdown=f"### Clinical Evidence Hierarchy\n\nList pivotal trials, systematic reviews, guidelines, and real-world evidence. Do not add effect sizes, p-values, or superiority language until each claim is traced to a citation.",
+            content_markdown=(
+                "### Clinical Evidence Hierarchy\n\n"
+                "- List pivotal trials, systematic reviews, guidelines, and real-world evidence.\n"
+                "- Do not add effect sizes, p-values, or superiority language until each claim is traced to a citation."
+            ),
             key_takeaways=["Rank evidence", "Map claims to PMID/DOI/label"],
             citations=[{"ref": "SOURCE_NEEDED", "note": "Claim-level evidence required"}]
         ),
@@ -130,7 +160,16 @@ def generate_strategic_brand_plan(
             section_id="sec-5",
             section_title="5. Regulatory Landscape & Labeling Fact Base",
             section_category="Regulatory",
-            content_markdown=f"### Regulatory Landscape & Labeling Fact Base\n\nConfirm approval status, indications, contraindications, warnings, dosage, and promotional boundaries for each target jurisdiction before release.",
+            content_markdown=(
+                "### Regulatory Landscape & Labeling Fact Base\n\n"
+                "Confirm, for each target jurisdiction before release:\n"
+                "- Approval status\n"
+                "- Indications\n"
+                "- Contraindications\n"
+                "- Warnings\n"
+                "- Dosage\n"
+                "- Promotional boundaries"
+            ),
             key_takeaways=["Verify label status", "Define fair-balance requirements"],
             citations=[{"ref": "SOURCE_NEEDED", "note": "DailyMed/EMA/CDSCO review required"}]
         ),
@@ -154,7 +193,11 @@ def generate_strategic_brand_plan(
             section_id="sec-8",
             section_title="8. Brand Positioning & Core Promise",
             section_category="Brand Identity",
-            content_markdown=f"### Positioning Statement\n\nDraft positioning only within the verified indication and label boundaries. Mark any aspirational positioning as internal strategy, not promotional copy.",
+            content_markdown=(
+                "### Positioning Statement\n\n"
+                "- Draft positioning only within the verified indication and label boundaries.\n"
+                "- Mark any aspirational positioning as internal strategy, not promotional copy."
+            ),
             key_takeaways=["Stay within label", "Separate strategy from claims"],
             citations=[{"ref": "REVIEW_REQUIRED", "note": "Positioning requires MLR/legal review"}]
         ),
@@ -162,7 +205,15 @@ def generate_strategic_brand_plan(
             section_id="sec-9",
             section_title="9. Key Promotional Messages & RTB Strategy",
             section_category="Brand Identity",
-            content_markdown=f"### Core Reasons to Believe (RTB)\n\nAdd only claims that have a mapped label/evidence source, jurisdiction, intended audience, required safety balance, and reviewer approval.",
+            content_markdown=(
+                "### Core Reasons to Believe (RTB)\n\n"
+                "Add only claims that have all of the following:\n"
+                "- A mapped label/evidence source\n"
+                "- The jurisdiction it applies to\n"
+                "- The intended audience\n"
+                "- Required safety balance\n"
+                "- Reviewer approval"
+            ),
             key_takeaways=["Claim text pending", "Safety balance pending", "Review pending"],
             citations=[{"ref": "SOURCE_NEEDED", "note": "RTB evidence map required"}]
         ),
@@ -170,7 +221,16 @@ def generate_strategic_brand_plan(
             section_id="sec-10",
             section_title="10. Multi-Channel Commercial Launch Plan",
             section_category="Execution",
-            content_markdown=f"### Integrated Go-To-Market Execution\n\nDraft launch activities across field force, medical education, digital, access, and internal enablement. External-facing assets must wait for approved claims.",
+            content_markdown=(
+                "### Integrated Go-To-Market Execution\n\n"
+                "Draft launch activities across:\n"
+                "- Field force\n"
+                "- Medical education\n"
+                "- Digital\n"
+                "- Market access\n"
+                "- Internal enablement\n\n"
+                "External-facing assets must wait for approved claims."
+            ),
             key_takeaways=["3-Pillar commercial launch", "Rapid hospital formulary penetration in Month 1-3"],
             citations=[{"ref": "Commercial Launch Playbook", "note": "Omnichannel Strategy"}]
         ),
@@ -178,7 +238,13 @@ def generate_strategic_brand_plan(
             section_id="sec-11",
             section_title="11. KOL Advocacy & CME Education Roadmap",
             section_category="Medical Affairs",
-            content_markdown=f"### Scientific Engagement & Medical Affairs\n\nEstablish a National Advisory Board drawn from the leading specialists in {therapy_area}. Plan regional Clinical Masterclasses (CMEs) and investigator-initiated real-world registries. Confirm board size, cadence, and budget against local transparency and anti-bribery codes.",
+            content_markdown=(
+                "### Scientific Engagement & Medical Affairs\n\n"
+                f"- Establish a National Advisory Board drawn from leading specialists in {therapy_area}.\n"
+                "- Plan regional Clinical Masterclasses (CMEs).\n"
+                "- Plan investigator-initiated real-world registries.\n"
+                "- Confirm board size, cadence, and budget against local transparency and anti-bribery codes."
+            ),
             key_takeaways=["Top-down scientific endorsement", "Peer-to-peer physician education"],
             citations=[{"ref": "Medical Affairs Strategy", "note": "KOL Engagement Framework"}]
         ),
@@ -186,7 +252,14 @@ def generate_strategic_brand_plan(
             section_id="sec-12",
             section_title="12. Balanced KPI Scorecard & Compliance Audit",
             section_category="Governance",
-            content_markdown=f"### Commercial and Clinical Metrics\n\nTrack monthly New-to-Brand Prescriptions (NBRx), Total Prescriptions (TRx), Tier-A doctor call frequency (target >3 calls/month), and ensure 100% compliance with FDA OPDP and CDSCO promotion guidelines.",
+            content_markdown=(
+                "### Commercial and Clinical Metrics\n\n"
+                "Track monthly:\n"
+                "- New-to-Brand Prescriptions (NBRx)\n"
+                "- Total Prescriptions (TRx)\n"
+                "- Tier-A doctor call frequency (target >3 calls/month)\n\n"
+                "Ensure 100% compliance with FDA OPDP and CDSCO promotion guidelines."
+            ),
             key_takeaways=["Monthly NBRx tracking", "Strict promotional compliance and Fair Balance auditing"],
             citations=[{"ref": "MLR Standard Operating Procedures", "note": "Compliance Audit Trail"}]
         )

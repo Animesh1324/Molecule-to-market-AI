@@ -447,6 +447,16 @@ export interface PatientEducationLeaflet {
   lifestyle_and_diet_tips: string[];
 }
 
+export interface CoPilotTurn {
+  sender: 'user' | 'ai';
+  text: string;
+}
+
+export interface CoPilotResponse {
+  reply: string;
+  ai_answered: boolean;
+}
+
 export interface VisualAidBrief {
   molecule_name: string;
   brand_name: string;
