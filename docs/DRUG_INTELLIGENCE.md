@@ -229,6 +229,42 @@ summary rather than silently discarded.
 Memory stays flat regardless of corpus size: partitions run to about a gigabyte
 of JSON each and are streamed with an incremental decoder, never `json.load`.
 
+## FDA catalogue datasets
+
+Beyond the drug monograph itself, three openFDA datasets load into their own
+tables (`db/fda_catalog_models.py`) — an approval application, a recall, and a
+supply shortage are different entities from a drug, so they are not forced
+onto `DrugORM`:
+
+| Table | Rows | Answers |
+| --- | --- | --- |
+| `fda_applications` | 29,277 | who holds the NDA/ANDA/BLA |
+| `fda_application_products` | 51,660 | what each application covers |
+| `fda_submissions` | 188,144 | first approval date, supplement history |
+| `drug_recalls` | 17,875 | enforcement actions, Class I/II/III |
+| `drug_shortages` | 1,627 | current and resolved supply shortages |
+
+```bash
+cd backend
+./.venv/bin/python scripts/ingest_openfda_bulk.py --datasets drugsfda,enforcement,shortages
+```
+
+Roughly 95 seconds for all three. Re-running merges on natural keys rather
+than duplicating.
+
+First-approval lookups verified against the four curated molecules: Eliquis
+NDA202155 (2012-12-28), Jardiance NDA204629 (2014-08-01), Ozempic NDA209637
+(2017-12-05), Keytruda BLA125514 (2014-09-04).
+
+**Orange Book is deliberately not loaded from openFDA.** `services/orange_book.py`
+already ingests FDA's own Orange Book zip, which carries `patent.txt` and
+`exclusivity.txt`. openFDA's `orangebook` dataset has neither — it stops at
+therapeutic equivalence codes — so loading it would replace a better source
+with a worse one. The CLI rejects `--datasets orangebook` and says so.
+
+**FAERS (`drug/event`) is not loaded.** 20.7 million reports, ~114 GB. That
+needs a deliberate decision about storage and sampling, not a default load.
+
 ## Limitations
 
 - **Structured pairwise interactions require a licensed feed.** openFDA carries
