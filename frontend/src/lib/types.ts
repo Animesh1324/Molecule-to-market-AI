@@ -313,6 +313,17 @@ export interface DoctorSpecialtySegment {
   prescription_potential_per_month: number;
 }
 
+export interface TradePriceStructure {
+  mrp_per_patient_year: number;
+  ptr_per_patient_year: number;
+  pts_per_patient_year: number;
+  retailer_margin_amount: number;
+  retailer_margin_percent: number;
+  stockist_margin_amount: number;
+  stockist_margin_percent: number;
+  manufacturer_realization_percent_of_mrp: number;
+}
+
 export interface MarketForecast {
   therapy_area: string;
   target_geography: string;
@@ -333,6 +344,8 @@ export interface MarketForecast {
   doctor_specialties: DoctorSpecialtySegment[];
   region_wise_opportunity: Record<string, string>;
   channel_strategy_breakdown: Record<string, string>;
+  trade_price_structure?: TradePriceStructure | null;
+  therapy_market_size_inr_at_trade_price?: number | null;
 }
 
 export interface BrandPlanSection {

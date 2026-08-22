@@ -1,4 +1,6 @@
-from fastapi import APIRouter, Query
+from typing import Optional
+
+from fastapi import APIRouter, HTTPException, Query
 from ..models.forecast import MarketForecast
 from ..services.forecast_service import calculate_market_forecast
 
@@ -13,15 +15,30 @@ async def get_market_forecast(
     diagnosed_rate: float = Query(0.72, gt=0, le=1, description="Diagnosis rate (0 to 1)"),
     treated_rate: float = Query(0.60, gt=0, le=1, description="Treatment rate (0 to 1)"),
     brand_adoption_rate_y1: float = Query(0.04, gt=0, le=1, description="Brand market share Year 1 (0 to 1)"),
-    annual_cost_per_patient_usd: float = Query(3600.0, gt=0, le=10_000_000, description="Net brand price per patient per year in USD")
+    annual_cost_per_patient_usd: float = Query(3600.0, gt=0, le=10_000_000, description="Net brand price per patient per year in USD"),
+    mrp_per_patient_year_inr: Optional[float] = Query(
+        None, gt=0, le=100_000_000,
+        description="India trade pricing (optional, supply all three or none): "
+                    "Maximum Retail Price per patient-year, in INR."),
+    ptr_per_patient_year_inr: Optional[float] = Query(
+        None, gt=0, le=100_000_000, description="Price to Retailer per patient-year, in INR."),
+    pts_per_patient_year_inr: Optional[float] = Query(
+        None, gt=0, le=100_000_000,
+        description="Price to Stockist per patient-year, in INR — the manufacturer's own realization."),
 ):
-    return calculate_market_forecast(
-        therapy_area=therapy_area,
-        target_geography=target_geography,
-        total_population=total_population,
-        prevalence_rate=prevalence_rate,
-        diagnosed_rate=diagnosed_rate,
-        treated_rate=treated_rate,
-        brand_adoption_rate_y1=brand_adoption_rate_y1,
-        annual_cost_per_patient_usd=annual_cost_per_patient_usd
-    )
+    try:
+        return calculate_market_forecast(
+            therapy_area=therapy_area,
+            target_geography=target_geography,
+            total_population=total_population,
+            prevalence_rate=prevalence_rate,
+            diagnosed_rate=diagnosed_rate,
+            treated_rate=treated_rate,
+            brand_adoption_rate_y1=brand_adoption_rate_y1,
+            annual_cost_per_patient_usd=annual_cost_per_patient_usd,
+            mrp_per_patient_year_inr=mrp_per_patient_year_inr,
+            ptr_per_patient_year_inr=ptr_per_patient_year_inr,
+            pts_per_patient_year_inr=pts_per_patient_year_inr,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc

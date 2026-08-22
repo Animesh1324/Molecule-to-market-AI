@@ -131,7 +131,7 @@ export default function AICoPilotDrawer({
         </div>
         <button
           onClick={onClose}
-          className="p-1.5 rounded-lg text-slate-500 dark:text-slate-400 hover:text-white hover:bg-slate-800 transition"
+          className="p-1.5 rounded-lg text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800 transition"
         >
           <X className="w-5 h-5" />
         </button>
@@ -200,7 +200,7 @@ export default function AICoPilotDrawer({
             <button
               key={idx}
               onClick={() => handleSend(p)}
-              className="px-2.5 py-1 rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-300 hover:text-white hover:bg-slate-800 text-[11px] whitespace-nowrap transition"
+              className="px-2.5 py-1 rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800 text-[11px] whitespace-nowrap transition"
             >
               💬 {p.slice(0, 32)}...
             </button>

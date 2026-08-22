@@ -128,7 +128,7 @@ export default function HomePage() {
               <button
                 key={idx}
                 onClick={() => handleSelectPreset(preset)}
-                className="px-3 py-1.5 rounded-lg bg-white dark:bg-slate-900 hover:bg-slate-800 border border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-300 hover:text-white transition flex items-center space-x-1.5"
+                className="px-3 py-1.5 rounded-lg bg-white dark:bg-slate-900 hover:bg-slate-100 dark:hover:bg-slate-800 border border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white transition flex items-center space-x-1.5"
               >
                 <Activity className="w-3.5 h-3.5 text-teal-700 dark:text-teal-400" />
                 <span>{preset.name}</span>

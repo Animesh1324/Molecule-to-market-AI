@@ -49,7 +49,7 @@ export default function Navbar({ currentProjectId, projectTitle, moleculeName }:
         <div className="flex items-center space-x-2 sm:space-x-3 shrink-0">
           <Link
             href="/"
-            className="flex items-center space-x-1.5 px-2 sm:px-3 py-1.5 rounded-lg text-sm text-slate-600 dark:text-slate-300 hover:text-white hover:bg-slate-800 transition"
+            className="flex items-center space-x-1.5 px-2 sm:px-3 py-1.5 rounded-lg text-sm text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800 transition"
           >
             <FolderKanban className="w-4 h-4 shrink-0 text-slate-500 dark:text-slate-400" />
             <span className="hidden sm:inline whitespace-nowrap">Projects Hub</span>

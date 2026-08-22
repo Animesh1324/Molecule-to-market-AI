@@ -2,7 +2,7 @@ import re
 from urllib.parse import quote
 
 from fastapi import APIRouter, Query, Response, HTTPException
-from typing import List
+from typing import List, Optional
 from datetime import datetime
 from ..models.reports import MLRAuditEntry
 from ..services.ai_orchestrator import generate_strategic_brand_plan, generate_commercial_assets
@@ -128,9 +128,23 @@ async def export_pitch_deck_pptx(
 @router.get("/export/xlsx")
 async def export_financial_model_xlsx(
     brand_name: str = Query(..., description="Brand name"),
-    therapy_area: str = Query("Cardiometabolic", description="Therapy area")
+    therapy_area: str = Query("Cardiometabolic", description="Therapy area"),
+    mrp_per_patient_year_inr: Optional[float] = Query(None, gt=0, le=100_000_000,
+        description="India trade pricing (optional, supply all three or none): MRP per patient-year, INR."),
+    ptr_per_patient_year_inr: Optional[float] = Query(None, gt=0, le=100_000_000,
+        description="Price to Retailer per patient-year, INR."),
+    pts_per_patient_year_inr: Optional[float] = Query(None, gt=0, le=100_000_000,
+        description="Price to Stockist per patient-year, INR — manufacturer's own realization."),
 ):
-    forecast = calculate_market_forecast(therapy_area=therapy_area)
+    try:
+        forecast = calculate_market_forecast(
+            therapy_area=therapy_area,
+            mrp_per_patient_year_inr=mrp_per_patient_year_inr,
+            ptr_per_patient_year_inr=ptr_per_patient_year_inr,
+            pts_per_patient_year_inr=pts_per_patient_year_inr,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
     buffer = generate_financial_model_xlsx(forecast, brand_name)
 
     return Response(

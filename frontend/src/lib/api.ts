@@ -159,6 +159,9 @@ export async function fetchMarketForecast(params: {
   treated_rate?: number;
   brand_adoption_rate_y1?: number;
   annual_cost_per_patient_usd?: number;
+  mrp_per_patient_year_inr?: number;
+  ptr_per_patient_year_inr?: number;
+  pts_per_patient_year_inr?: number;
 }): Promise<MarketForecast> {
   const q = new URLSearchParams();
   if (params.therapy_area) q.append('therapy_area', params.therapy_area);
@@ -169,6 +172,9 @@ export async function fetchMarketForecast(params: {
   if (params.treated_rate !== undefined) q.append('treated_rate', params.treated_rate.toString());
   if (params.brand_adoption_rate_y1 !== undefined) q.append('brand_adoption_rate_y1', params.brand_adoption_rate_y1.toString());
   if (params.annual_cost_per_patient_usd !== undefined) q.append('annual_cost_per_patient_usd', params.annual_cost_per_patient_usd.toString());
+  if (params.mrp_per_patient_year_inr) q.append('mrp_per_patient_year_inr', params.mrp_per_patient_year_inr.toString());
+  if (params.ptr_per_patient_year_inr) q.append('ptr_per_patient_year_inr', params.ptr_per_patient_year_inr.toString());
+  if (params.pts_per_patient_year_inr) q.append('pts_per_patient_year_inr', params.pts_per_patient_year_inr.toString());
 
   const res = await fetch(`${API_BASE}/api/forecasting/model?${q.toString()}`, { headers: authHeaders() });
   if (!res.ok) throw await apiError(res, 'Failed to fetch market forecast');

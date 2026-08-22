@@ -130,6 +130,13 @@ export default function ProjectWorkspacePage() {
   const [treatedRate, setTreatedRate] = useState(0.60);
   const [adoptionRate, setAdoptionRate] = useState(0.04);
   const [annualCost, setAnnualCost] = useState(3600);
+  // India trade pricing is opt-in: most brand plans (any geography) never
+  // need it, so the fields stay empty and unsent until a user explicitly
+  // enables the panel, matching the backend's "all three or none" contract.
+  const [tradePricingEnabled, setTradePricingEnabled] = useState(false);
+  const [mrpInr, setMrpInr] = useState(18000);
+  const [ptrInr, setPtrInr] = useState(15500);
+  const [ptsInr, setPtsInr] = useState(13200);
 
   // AI Co-Pilot Drawer State
   const [isCoPilotOpen, setIsCoPilotOpen] = useState(false);
@@ -240,7 +247,10 @@ export default function ProjectWorkspacePage() {
         diagnosed_rate: diagnosedRate,
         treated_rate: treatedRate,
         brand_adoption_rate_y1: adoptionRate,
-        annual_cost_per_patient_usd: annualCost
+        annual_cost_per_patient_usd: annualCost,
+        ...(tradePricingEnabled
+          ? { mrp_per_patient_year_inr: mrpInr, ptr_per_patient_year_inr: ptrInr, pts_per_patient_year_inr: ptsInr }
+          : {}),
       });
       setForecast(updated);
     } catch (e) {
@@ -1383,6 +1393,67 @@ export default function ProjectWorkspacePage() {
                 </div>
               </div>
 
+              {/* India trade price structure: MRP -> PTR -> PTS. Opt-in and
+                  separate from the USD slider above it — PTS, not MRP, is the
+                  manufacturer's own realization per patient-year, so treating
+                  it as an alternative price input rather than folding it into
+                  the existing USD field keeps the two from being conflated. */}
+              <div className="pt-4 border-t border-slate-200 dark:border-slate-800 space-y-3">
+                <label className="flex items-center gap-2 text-xs font-semibold text-slate-600 dark:text-slate-300 cursor-pointer w-fit">
+                  <input
+                    type="checkbox"
+                    checked={tradePricingEnabled}
+                    onChange={(e) => setTradePricingEnabled(e.target.checked)}
+                    className="rounded accent-brand-500"
+                  />
+                  <span>Model India trade price structure (MRP / PTR / PTS)</span>
+                </label>
+
+                {tradePricingEnabled && (
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-xs pl-1">
+                    <div className="space-y-1.5">
+                      <label className="block font-semibold text-slate-600 dark:text-slate-300">
+                        MRP <span className="font-normal text-slate-400 dark:text-slate-500">(patient pays, ₹/patient-yr)</span>
+                      </label>
+                      <input
+                        type="number"
+                        min={1}
+                        value={mrpInr}
+                        onChange={(e) => setMrpInr(parseFloat(e.target.value) || 0)}
+                        className="w-full px-3 py-1.5 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-100 font-mono"
+                      />
+                    </div>
+                    <div className="space-y-1.5">
+                      <label className="block font-semibold text-slate-600 dark:text-slate-300">
+                        PTR <span className="font-normal text-slate-400 dark:text-slate-500">(price to retailer, ₹/patient-yr)</span>
+                      </label>
+                      <input
+                        type="number"
+                        min={1}
+                        value={ptrInr}
+                        onChange={(e) => setPtrInr(parseFloat(e.target.value) || 0)}
+                        className="w-full px-3 py-1.5 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-100 font-mono"
+                      />
+                    </div>
+                    <div className="space-y-1.5">
+                      <label className="block font-semibold text-slate-600 dark:text-slate-300">
+                        PTS <span className="font-normal text-slate-400 dark:text-slate-500">(price to stockist, ₹/patient-yr)</span>
+                      </label>
+                      <input
+                        type="number"
+                        min={1}
+                        value={ptsInr}
+                        onChange={(e) => setPtsInr(parseFloat(e.target.value) || 0)}
+                        className="w-full px-3 py-1.5 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-100 font-mono"
+                      />
+                    </div>
+                    <p className="md:col-span-3 text-[11px] text-slate-400 dark:text-slate-500">
+                      Must descend MRP ≥ PTR ≥ PTS — each step down is a real distribution margin, never negative.
+                    </p>
+                  </div>
+                )}
+              </div>
+
               <div className="pt-2 flex justify-between items-center gap-4">
                 {forecastError ? (
                   <p className="flex items-center gap-1.5 text-xs text-red-700 dark:text-red-400">
@@ -1401,6 +1472,50 @@ export default function ProjectWorkspacePage() {
                 </button>
               </div>
             </div>
+
+            {/* India trade price structure results. Only rendered once the
+                forecast actually carries one — an untouched USD-only
+                forecast must not show a stale or fabricated margin card. */}
+            {forecast.trade_price_structure && (
+              <div className="p-6 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 space-y-4">
+                <h3 className="text-sm font-bold text-slate-700 dark:text-slate-200 uppercase tracking-wider flex items-center gap-2">
+                  <span>🇮🇳</span>
+                  <span>India Trade Price Structure</span>
+                </h3>
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 text-xs">
+                  <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-950/40 border border-slate-200 dark:border-slate-800">
+                    <span className="text-[10px] uppercase tracking-wider text-slate-500 dark:text-slate-400 block mb-1">MRP</span>
+                    <span className="text-lg font-bold text-slate-900 dark:text-white font-mono">
+                      ₹{forecast.trade_price_structure.mrp_per_patient_year.toLocaleString('en-IN')}
+                    </span>
+                  </div>
+                  <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-950/40 border border-slate-200 dark:border-slate-800">
+                    <span className="text-[10px] uppercase tracking-wider text-slate-500 dark:text-slate-400 block mb-1">
+                      PTR <span className="text-rose-600 dark:text-rose-400">(−{forecast.trade_price_structure.retailer_margin_percent.toFixed(1)}% retailer margin)</span>
+                    </span>
+                    <span className="text-lg font-bold text-slate-900 dark:text-white font-mono">
+                      ₹{forecast.trade_price_structure.ptr_per_patient_year.toLocaleString('en-IN')}
+                    </span>
+                  </div>
+                  <div className="p-3 rounded-xl bg-emerald-50 dark:bg-emerald-950/20 border border-emerald-300 dark:border-emerald-800">
+                    <span className="text-[10px] uppercase tracking-wider text-emerald-700 dark:text-emerald-400 block mb-1">
+                      PTS <span className="text-rose-600 dark:text-rose-400">(−{forecast.trade_price_structure.stockist_margin_percent.toFixed(1)}% stockist margin)</span>
+                    </span>
+                    <span className="text-lg font-bold text-emerald-800 dark:text-emerald-300 font-mono">
+                      ₹{forecast.trade_price_structure.pts_per_patient_year.toLocaleString('en-IN')}
+                    </span>
+                  </div>
+                </div>
+                <p className="text-xs text-slate-500 dark:text-slate-400">
+                  Manufacturer realizes <strong className="text-slate-700 dark:text-slate-200">{forecast.trade_price_structure.manufacturer_realization_percent_of_mrp.toFixed(1)}%</strong> of
+                  MRP per patient-year. Addressable market at PTS:{' '}
+                  <strong className="text-slate-700 dark:text-slate-200 font-mono">
+                    ₹{forecast.therapy_market_size_inr_at_trade_price?.toLocaleString('en-IN')}
+                  </strong>{' '}
+                  — the company's own revenue basis, distinct from the patient-facing USD market size above, which includes the retailer and stockist margins PTS excludes.
+                </p>
+              </div>
+            )}
 
             {/* Patient Funnel Visualization */}
             <PatientFunnel forecast={forecast} />
@@ -1563,7 +1678,7 @@ export default function ProjectWorkspacePage() {
             </div>
 
             {/* Campaign Theme Banner */}
-            <div className="p-6 rounded-2xl bg-gradient-to-r from-brand-100 dark:from-brand-950 via-slate-50 dark:via-slate-900 to-teal-950 border border-brand-800/60 flex flex-wrap items-center justify-between gap-4 shadow-xl">
+            <div className="p-6 rounded-2xl bg-gradient-to-r from-brand-100 dark:from-brand-950 via-slate-50 dark:via-slate-900 to-teal-100 dark:to-teal-950 border border-brand-800/60 flex flex-wrap items-center justify-between gap-4 shadow-xl">
               <div className="space-y-1">
                 <span className="text-xs font-mono text-teal-700 dark:text-teal-400 uppercase tracking-wider">Core Campaign Theme</span>
                 <h2 className="text-xl font-extrabold text-slate-900 dark:text-white">"{assets.campaign_theme}"</h2>

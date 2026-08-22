@@ -328,8 +328,106 @@ def generate_financial_model_xlsx(forecast: MarketForecast, brand_name: str) -> 
         max_len = max(len(str(cell.value or '')) for cell in col)
         col_letter = openpyxl.utils.get_column_letter(col[0].column)
         ws.column_dimensions[col_letter].width = max(max_len + 3, 14)
-        
+
+    # India trade price structure — a separate sheet, not columns bolted onto
+    # the first one, since PTR/PTS is an India-specific concept in INR while
+    # the sheet above is USD. Only added when the forecast actually carries
+    # trade pricing, so a plan with none does not show an empty tab.
+    if forecast.trade_price_structure:
+        _add_trade_price_sheet(wb, forecast, brand_name)
+
     buffer = io.BytesIO()
     wb.save(buffer)
     buffer.seek(0)
     return buffer
+
+
+def _add_trade_price_sheet(wb, forecast: MarketForecast, brand_name: str) -> None:
+    """India MRP -> PTR -> PTS trade margin structure, on its own sheet.
+
+    PTS is the manufacturer's actual realization per patient-year — the
+    correct basis for the company's own revenue forecast, distinct from the
+    MRP the patient pays. Showing the margin structure explicitly, rather
+    than just the final number, is what lets a brand manager sanity-check the
+    trade terms against what the distribution channel would actually accept.
+    """
+    trade = forecast.trade_price_structure
+    ws = wb.create_sheet("India Trade Price Structure")
+
+    header_font = Font(name="Calibri", size=14, bold=True, color="FFFFFF")
+    header_fill = PatternFill(start_color="0F4C81", end_color="0F4C81", fill_type="solid")
+    bold_font = Font(name="Calibri", size=11, bold=True)
+    inr_format = "₹#,##0"
+
+    ws.merge_cells("A1:D1")
+    ws["A1"] = f"INDIA TRADE PRICE STRUCTURE — {brand_name.upper()}"
+    ws["A1"].font = header_font
+    ws["A1"].fill = header_fill
+    ws["A1"].alignment = Alignment(horizontal="center", vertical="center")
+    ws.row_dimensions[1].height = 22
+
+    ws.merge_cells("A2:D2")
+    ws["A2"] = ("DRAFT — Not MLR Approved. Trade terms require sourced verification "
+               "against the actual distribution agreement before use.")
+    ws["A2"].font = Font(name="Calibri", size=9, italic=True, color="94A3B8")
+    ws["A2"].alignment = Alignment(horizontal="center")
+
+    ws["A4"] = "PRICE POINT (PER PATIENT-YEAR)"
+    ws["A4"].font = bold_font
+    ws["B4"] = "VALUE (INR)"
+    ws["B4"].font = bold_font
+
+    rows = [
+        ("MRP — Maximum Retail Price (what the patient pays)", trade.mrp_per_patient_year),
+        ("PTR — Price to Retailer", trade.ptr_per_patient_year),
+        ("PTS — Price to Stockist (manufacturer's own realization)", trade.pts_per_patient_year),
+    ]
+    for idx, (label, value) in enumerate(rows, start=5):
+        ws.cell(row=idx, column=1, value=label)
+        cell = ws.cell(row=idx, column=2, value=value)
+        cell.number_format = inr_format
+        cell.alignment = Alignment(horizontal="right")
+
+    ws["A9"] = "MARGIN"
+    ws["A9"].font = bold_font
+    ws["B9"] = "AMOUNT (INR)"
+    ws["B9"].font = bold_font
+    ws["C9"] = "% OF UPSTREAM PRICE"
+    ws["C9"].font = bold_font
+
+    margin_rows = [
+        ("Retailer margin (MRP - PTR)", trade.retailer_margin_amount, trade.retailer_margin_percent),
+        ("Stockist margin (PTR - PTS)", trade.stockist_margin_amount, trade.stockist_margin_percent),
+    ]
+    for idx, (label, amount, percent) in enumerate(margin_rows, start=10):
+        ws.cell(row=idx, column=1, value=label)
+        amount_cell = ws.cell(row=idx, column=2, value=amount)
+        amount_cell.number_format = inr_format
+        amount_cell.alignment = Alignment(horizontal="right")
+        percent_cell = ws.cell(row=idx, column=3, value=percent / 100.0)
+        percent_cell.number_format = "0.0%"
+        percent_cell.alignment = Alignment(horizontal="right")
+
+    ws["A13"] = "Manufacturer realization as % of MRP"
+    ws["A13"].font = bold_font
+    pct_cell = ws.cell(row=13, column=2, value=trade.manufacturer_realization_percent_of_mrp / 100.0)
+    pct_cell.number_format = "0.0%"
+    pct_cell.font = bold_font
+    pct_cell.alignment = Alignment(horizontal="right")
+
+    if forecast.therapy_market_size_inr_at_trade_price:
+        ws["A15"] = "Addressable market at PTS (treated pool x PTS)"
+        ws["A15"].font = bold_font
+        market_cell = ws.cell(row=15, column=2, value=forecast.therapy_market_size_inr_at_trade_price)
+        market_cell.number_format = "₹#,##0"
+        market_cell.font = bold_font
+        market_cell.alignment = Alignment(horizontal="right")
+        ws["A16"] = ("This is the manufacturer's own addressable revenue, not the "
+                     "patient-facing market size shown on the USD sheet — the two "
+                     "are not meant to reconcile, since PTS excludes the retailer "
+                     "and stockist margins MRP includes.")
+        ws["A16"].font = Font(name="Calibri", size=9, italic=True, color="64748B")
+        ws.merge_cells("A16:D16")
+
+    for col, width in (("A", 55), ("B", 18), ("C", 20), ("D", 14)):
+        ws.column_dimensions[col].width = width

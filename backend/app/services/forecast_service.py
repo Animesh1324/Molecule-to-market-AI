@@ -1,6 +1,6 @@
 import math
 from typing import Dict, Any, List, Optional
-from ..models.forecast import MarketForecast, ScenarioProjections, DoctorSpecialtySegment
+from ..models.forecast import MarketForecast, ScenarioProjections, DoctorSpecialtySegment, TradePriceStructure
 
 # Share multipliers applied to the Year-1 adoption rate, per scenario.
 # These are planning heuristics, not sourced market data — the caller is
@@ -113,6 +113,37 @@ def _doctor_segments_for(therapy_area: str) -> List[DoctorSpecialtySegment]:
     ]
 
 
+def _build_trade_price_structure(
+    mrp_per_patient_year: float, ptr_per_patient_year: float, pts_per_patient_year: float
+) -> TradePriceStructure:
+    """India trade margins from MRP down to the manufacturer's own realization.
+
+    Validated as a descending chain — MRP >= PTR >= PTS > 0 — because a
+    retailer or stockist margin can never be negative in a real distribution
+    agreement; an inverted input is a data-entry error, not an edge case to
+    silently accept.
+    """
+    if not (mrp_per_patient_year >= ptr_per_patient_year >= pts_per_patient_year > 0):
+        raise ValueError(
+            "Trade price structure must descend MRP >= PTR >= PTS > 0, got "
+            f"mrp={mrp_per_patient_year}, ptr={ptr_per_patient_year}, pts={pts_per_patient_year}"
+        )
+    retailer_margin = mrp_per_patient_year - ptr_per_patient_year
+    stockist_margin = ptr_per_patient_year - pts_per_patient_year
+    return TradePriceStructure(
+        mrp_per_patient_year=round(mrp_per_patient_year, 2),
+        ptr_per_patient_year=round(ptr_per_patient_year, 2),
+        pts_per_patient_year=round(pts_per_patient_year, 2),
+        retailer_margin_amount=round(retailer_margin, 2),
+        retailer_margin_percent=round((retailer_margin / mrp_per_patient_year) * 100, 2),
+        stockist_margin_amount=round(stockist_margin, 2),
+        stockist_margin_percent=round((stockist_margin / ptr_per_patient_year) * 100, 2)
+                                if ptr_per_patient_year else 0.0,
+        manufacturer_realization_percent_of_mrp=round(
+            (pts_per_patient_year / mrp_per_patient_year) * 100, 2),
+    )
+
+
 def calculate_market_forecast(
     therapy_area: str = "Cardiometabolic",
     target_geography: str = "Global",
@@ -122,12 +153,24 @@ def calculate_market_forecast(
     treated_rate: float = 0.60,     # 60% of diagnosed receiving treatment
     brand_adoption_rate_y1: float = 0.04, # 4% initial brand market share
     annual_cost_per_patient_usd: float = 3600.0, # Net brand price per patient-year ($300/month)
+    mrp_per_patient_year_inr: Optional[float] = None,
+    ptr_per_patient_year_inr: Optional[float] = None,
+    pts_per_patient_year_inr: Optional[float] = None,
 ) -> MarketForecast:
     """Computes pure mathematical epidemiological patient funnel and 5-year multi-scenario revenue projections.
 
     Rates are validated at the API boundary, but this function is also called
     directly by the export endpoints, so it re-checks its own inputs rather than
     trusting the caller.
+
+    The India trade price parameters (mrp/ptr/pts) are optional and additive:
+    when none are supplied, behaviour and output are identical to before this
+    existed. When all three are supplied, the response also carries the
+    computed margin structure and the manufacturer's actual addressable
+    revenue at trade price — a separate INR figure from the USD scenario
+    projections above, not a replacement for them, since PTS is the
+    Indian-market trade concept and the scenarios remain currency-agnostic
+    planning heuristics.
     """
 
     for label, rate in (
@@ -143,6 +186,20 @@ def calculate_market_forecast(
     if annual_cost_per_patient_usd <= 0:
         raise ValueError(f"annual_cost_per_patient_usd must be positive, got {annual_cost_per_patient_usd}")
 
+    trade_price_structure = None
+    therapy_market_size_inr_at_trade_price = None
+    trade_inputs_given = [v is not None for v in
+                         (mrp_per_patient_year_inr, ptr_per_patient_year_inr, pts_per_patient_year_inr)]
+    if any(trade_inputs_given) and not all(trade_inputs_given):
+        raise ValueError(
+            "Supply mrp, ptr, and pts together, or none of them — a partial "
+            "trade price structure cannot compute a margin."
+        )
+
+    if all(trade_inputs_given):
+        trade_price_structure = _build_trade_price_structure(
+            mrp_per_patient_year_inr, ptr_per_patient_year_inr, pts_per_patient_year_inr)
+
     # 1. Patient Funnel Mathematics
     prevalent_pool = int(total_population * prevalence_rate)
     diagnosed_pool = int(prevalent_pool * diagnosed_rate)
@@ -150,6 +207,10 @@ def calculate_market_forecast(
 
     # Total available treated therapy market value
     therapy_market_size = treated_pool * annual_cost_per_patient_usd
+
+    if trade_price_structure:
+        therapy_market_size_inr_at_trade_price = round(
+            treated_pool * trade_price_structure.pts_per_patient_year, 2)
 
     # 2. Five-year revenue under three uptake scenarios
     conservative = _build_scenario(treated_pool, brand_adoption_rate_y1, annual_cost_per_patient_usd, SCENARIO_CURVES["conservative"])
@@ -194,5 +255,7 @@ def calculate_market_forecast(
         aggressive_scenario=aggressive,
         doctor_specialties=doctor_segments,
         region_wise_opportunity=region_breakdown,
-        channel_strategy_breakdown=channel_strategy
+        channel_strategy_breakdown=channel_strategy,
+        trade_price_structure=trade_price_structure,
+        therapy_market_size_inr_at_trade_price=therapy_market_size_inr_at_trade_price,
     )

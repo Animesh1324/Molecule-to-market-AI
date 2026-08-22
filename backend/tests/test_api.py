@@ -82,6 +82,70 @@ def test_forecasting_model():
     assert data["prevalent_patient_pool"] > 0
     assert data["realistic_scenario"]["year_5"] > data["realistic_scenario"]["year_1"]
 
+def test_forecast_trade_price_structure_computes_margins():
+    response = client.get(
+        "/api/forecasting/model?mrp_per_patient_year_inr=18000"
+        "&ptr_per_patient_year_inr=15500&pts_per_patient_year_inr=13200")
+    assert response.status_code == 200
+    data = response.json()
+    trade = data["trade_price_structure"]
+    assert trade["mrp_per_patient_year"] == 18000
+    assert trade["retailer_margin_amount"] == 2500
+    assert trade["stockist_margin_amount"] == 2300
+    assert data["therapy_market_size_inr_at_trade_price"] == pytest.approx(
+        data["treated_patient_pool"] * 13200, rel=1e-6)
+
+
+def test_forecast_without_trade_pricing_is_unaffected():
+    response = client.get("/api/forecasting/model")
+    assert response.status_code == 200
+    data = response.json()
+    assert data["trade_price_structure"] is None
+    assert data["therapy_market_size_inr_at_trade_price"] is None
+
+
+def test_forecast_rejects_inverted_trade_price_chain():
+    """A retailer or stockist margin can never be negative in a real
+    distribution agreement — MRP < PTR is a data-entry error, not a valid
+    (if unusual) input.
+    """
+    response = client.get(
+        "/api/forecasting/model?mrp_per_patient_year_inr=100"
+        "&ptr_per_patient_year_inr=200&pts_per_patient_year_inr=50")
+    assert response.status_code == 422
+
+
+def test_forecast_rejects_partial_trade_price_supply():
+    response = client.get("/api/forecasting/model?mrp_per_patient_year_inr=18000")
+    assert response.status_code == 422
+
+
+def test_xlsx_export_carries_a_trade_price_sheet_when_supplied():
+    import io
+    from openpyxl import load_workbook
+
+    response = client.get(
+        "/api/reports/export/xlsx?brand_name=Cardioflo"
+        "&mrp_per_patient_year_inr=18000&ptr_per_patient_year_inr=15500&pts_per_patient_year_inr=13200")
+    assert response.status_code == 200
+    workbook = load_workbook(io.BytesIO(response.content))
+    assert "India Trade Price Structure" in workbook.sheetnames
+    sheet = workbook["India Trade Price Structure"]
+    assert sheet["B5"].value == 18000
+    assert sheet["B6"].value == 15500
+    assert sheet["B7"].value == 13200
+
+
+def test_xlsx_export_has_no_trade_price_sheet_without_trade_pricing():
+    import io
+    from openpyxl import load_workbook
+
+    response = client.get("/api/reports/export/xlsx?brand_name=Cardioflo")
+    assert response.status_code == 200
+    workbook = load_workbook(io.BytesIO(response.content))
+    assert "India Trade Price Structure" not in workbook.sheetnames
+
+
 def test_brand_plan_generation():
     response = client.get("/api/brand-plan/generate?project_id=test-1&molecule=Empagliflozin")
     assert response.status_code == 200

@@ -13,7 +13,7 @@ export default function PatientFunnel({ forecast }: PatientFunnelProps) {
       count: forecast.total_population.toLocaleString(),
       percentage: '100%',
       icon: Users,
-      color: 'from-slate-700 to-slate-800',
+      color: 'from-slate-100 to-slate-200 dark:from-slate-700 dark:to-slate-800',
       textColor: 'text-slate-600 dark:text-slate-300'
     },
     {
@@ -21,15 +21,15 @@ export default function PatientFunnel({ forecast }: PatientFunnelProps) {
       count: forecast.prevalent_patient_pool.toLocaleString(),
       percentage: `${(forecast.prevalence_rate * 100).toFixed(1)}% Prevalence`,
       icon: Users,
-      color: 'from-blue-900/80 to-blue-950',
-      textColor: 'text-blue-300'
+      color: 'from-blue-50 to-blue-100 dark:from-blue-900/80 dark:to-blue-950',
+      textColor: 'text-blue-700 dark:text-blue-300'
     },
     {
       label: '3. Diagnosed Patients',
       count: forecast.diagnosed_patient_pool.toLocaleString(),
       percentage: `${(forecast.diagnosed_rate * 100).toFixed(0)}% Diagnosis Rate`,
       icon: UserCheck,
-      color: 'from-cyan-900/80 to-cyan-950',
+      color: 'from-cyan-50 to-cyan-100 dark:from-cyan-900/80 dark:to-cyan-950',
       textColor: 'text-cyan-700 dark:text-cyan-300'
     },
     {
@@ -37,7 +37,7 @@ export default function PatientFunnel({ forecast }: PatientFunnelProps) {
       count: forecast.treated_patient_pool.toLocaleString(),
       percentage: `${(forecast.treated_rate * 100).toFixed(0)}% Treatment Rate`,
       icon: Stethoscope,
-      color: 'from-teal-900/80 to-teal-950',
+      color: 'from-teal-50 to-teal-100 dark:from-teal-900/80 dark:to-teal-950',
       textColor: 'text-teal-700 dark:text-teal-300'
     }
   ];

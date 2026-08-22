@@ -38,7 +38,7 @@ export default function VisualAidCarousel({ slides, brandName }: VisualAidCarous
               className={`w-7 h-7 rounded-lg text-xs font-bold transition-all ${
                 activeIdx === idx
                   ? 'bg-brand-600 text-slate-900 dark:text-white shadow-md shadow-brand-500/20'
-                  : 'text-slate-500 dark:text-slate-400 hover:text-white hover:bg-slate-800'
+                  : 'text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800'
               }`}
             >
               {s.slide_number}
@@ -50,7 +50,7 @@ export default function VisualAidCarousel({ slides, brandName }: VisualAidCarous
       {/* Slide Mockup Canvas */}
       <div className="bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl overflow-hidden shadow-inner">
         {/* Top Slide Header */}
-        <div className="bg-gradient-to-r from-slate-900 via-brand-950/60 to-slate-50 dark:to-slate-900 p-5 border-b border-slate-200 dark:border-slate-800">
+        <div className="bg-gradient-to-r from-white via-brand-50 to-slate-50 dark:from-slate-900 dark:via-brand-950/60 dark:to-slate-900 p-5 border-b border-slate-200 dark:border-slate-800">
           <div className="text-xs font-mono text-brand-700 dark:text-brand-400 tracking-wider uppercase">{brandName} Clinical Detailing</div>
           <h2 className="text-xl md:text-2xl font-bold text-slate-900 dark:text-white mt-1 leading-snug">
             {current.headline_for_doctor}
