@@ -89,6 +89,89 @@ def test_brand_plan_generation():
     assert len(data["sections"]) == 12
     assert len(data["monthly_action_plan"]) >= 5
 
+def test_brand_plan_reflects_real_competitor_data_not_a_bare_placeholder():
+    """The competitive-defense section previously said the same generic
+    sentence regardless of molecule, even when real competitor data existed.
+    A manually-attested competitor (the isolated test database carries no
+    pre-loaded licensed extract) must appear in the generated plan, not a
+    generic placeholder.
+    """
+    from app.services import market_data_service as market
+
+    entry = market.add_manual_competitor(
+        molecule="Rosuvastatin", brand="TestCompetitorBrand", company="Test Co",
+        source_note="Test fixture", added_by="Test")
+    try:
+        response = client.get(
+            "/api/brand-plan/generate?project_id=test-competitor-grounding"
+            "&molecule=Rosuvastatin&refresh=true&ai=false")
+        assert response.status_code == 200
+        data = response.json()
+        competitor_section = next(
+            s for s in data["sections"] if "Competitive Defense" in s["section_title"])
+        assert "Build competitor comparison from verified labels" not in competitor_section["content_markdown"]
+        assert "TestCompetitorBrand" in competitor_section["content_markdown"]
+        assert "team-attested" in competitor_section["content_markdown"]
+        assert "pending source-backed competitor and label comparison" not in data["competitor_gap_and_differentiation"]
+    finally:
+        market.delete_manual_competitor(entry["id"])
+
+
+def test_brand_plan_states_the_measured_market_size_when_available():
+    """A licensed-extract-backed competitor (not manual) states the measured
+    market size in the plan, not just the brand list.
+    """
+    from app.services import market_data_service as market
+    from app.db.market_models import MarketBrandORM, MarketDatasetORM
+    from app.db.database import SessionLocal
+    import uuid
+    from datetime import datetime
+
+    session = SessionLocal()
+    dataset_id = uuid.uuid4().hex
+    try:
+        session.add(MarketDatasetORM(
+            id=dataset_id, original_filename="test.csv", source_label="Test",
+            market="India", period_label="MAT TEST'26", value_unit="INR Cr",
+            row_count=1, brand_count=1, molecule_count=1, company_count=1,
+            total_value=100.0, status="ready",
+            ingested_at=datetime.now().strftime("%Y-%m-%d %H:%M:%S")))
+        session.add(MarketBrandORM(
+            id=uuid.uuid4().hex, dataset_id=dataset_id,
+            molecule_desc="Apixaban", molecule_key="APIXABAN",
+            brand="TestApixBrand", company="Test Pharma",
+            value_latest=100.0, period_latest="MAT TEST'26"))
+        session.commit()
+    finally:
+        session.close()
+
+    try:
+        response = client.get(
+            "/api/brand-plan/generate?project_id=test-competitor-grounding-2"
+            "&molecule=Apixaban&refresh=true&ai=false")
+        data = response.json()
+        competitor_section = next(
+            s for s in data["sections"] if "Competitive Defense" in s["section_title"])
+        assert "Measured market" in competitor_section["content_markdown"]
+        assert "INR Cr" in competitor_section["content_markdown"]
+    finally:
+        market.delete_dataset(dataset_id)
+
+
+def test_brand_plan_falls_back_cleanly_with_no_competitor_data_on_file():
+    """A molecule with no licensed extract and no manual entry must still
+    generate a plan — the gap is stated plainly, not a crash.
+    """
+    response = client.get(
+        "/api/brand-plan/generate?project_id=test-competitor-grounding-3"
+        "&molecule=Fictitiousmab&refresh=true&ai=false")
+    assert response.status_code == 200
+    data = response.json()
+    competitor_section = next(
+        s for s in data["sections"] if "Competitive Defense" in s["section_title"])
+    assert "No source-backed competitor set is on file" in competitor_section["content_markdown"]
+
+
 def test_creative_assets_generation():
     response = client.get("/api/assets/generate?molecule=Empagliflozin")
     assert response.status_code == 200

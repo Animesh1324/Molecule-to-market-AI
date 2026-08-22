@@ -303,3 +303,116 @@ def test_company_total_is_not_the_display_cap(ingested):
     overview = market.molecule_overview("Empagliflozin")
     assert overview["total_companies"] == market.count_companies("Empagliflozin")
     assert overview["total_companies"] >= len(overview["companies"])
+
+
+# --------------------------------------------------------------------------
+# Manual competitors
+#
+# For a brand a team knows is real that a licensed extract doesn't cover
+# because it launched or scaled after the file's period, or because no
+# extract has been loaded for that market at all. Example data below is
+# entirely synthetic — no real brand, company, or project.
+# --------------------------------------------------------------------------
+
+@pytest.fixture()
+def manual_entry():
+    entry = market.add_manual_competitor(
+        molecule="Semaglutide",
+        brand="Testabrand",
+        company="Test Pharma Co",
+        market="India",
+        source_note="Test source note — not from a licensed audit extract.",
+        added_by="Test",
+    )
+    yield entry
+    market.delete_manual_competitor(entry["id"])
+
+
+def test_manual_entry_requires_a_source():
+    with pytest.raises(ValueError):
+        market.add_manual_competitor(
+            molecule="Semaglutide", brand="Testabrand", source_note="   ", added_by="Test")
+    with pytest.raises(ValueError):
+        market.add_manual_competitor(
+            molecule="Semaglutide", brand="Testabrand", source_note="", added_by="Test")
+
+
+def test_manual_entry_is_listed_for_its_molecule(manual_entry):
+    entries = market.list_manual_competitors("Semaglutide")
+    assert any(e["brand"] == "Testabrand" for e in entries)
+
+
+def test_manual_entry_does_not_appear_for_a_different_molecule(manual_entry):
+    assert market.list_manual_competitors("Rosuvastatin") == []
+
+
+def test_deleting_a_manual_entry_removes_it(manual_entry):
+    assert market.delete_manual_competitor(manual_entry["id"]) is True
+    assert market.list_manual_competitors("Semaglutide") == []
+    # Deleting again is a clean false, not an error.
+    assert market.delete_manual_competitor(manual_entry["id"]) is False
+
+
+def test_manual_entry_never_inflates_the_licensed_market_size(manual_entry, ingested):
+    """A manual attestation must not be counted into the audited market
+    total — that would let an unverified figure masquerade as measured.
+    """
+    overview = market.brand_competitors("Semaglutide")
+    # The licensed extract fixture 'ingested' only ever puts Rybelsus in the
+    # market_brands table; the manual entry must not appear there or affect size.
+    assert not any(b["brand"] == "Testabrand" for b in overview["brands"])
+
+
+def test_manual_entry_surfaces_through_the_competitor_endpoint(manual_entry):
+    response = client.get("/api/competitors/landscape", params={"molecule": "Semaglutide"})
+    assert response.status_code == 200
+    body = response.json()
+    manual_rows = [c for c in body["competitors"] if c["data_source"] == "manual"]
+    assert any(c["brand_name"] == "Testabrand" for c in manual_rows)
+    row = next(c for c in manual_rows if c["brand_name"] == "Testabrand")
+    assert row["company"] == "Test Pharma Co"
+    assert "not from a licensed audit extract" in row["source_note"]
+    assert row["added_by"] == "Test"
+
+
+def test_manual_entry_alone_does_not_claim_a_measured_market_size():
+    """With no licensed extract for the molecule at all, the summary must say
+    so plainly rather than reporting a market size derived from nothing.
+    """
+    entry = market.add_manual_competitor(
+        molecule="Fictitiousmab", brand="Madeupinib",
+        source_note="Test source", added_by="Test")
+    try:
+        response = client.get("/api/competitors/landscape", params={"molecule": "Fictitiousmab"})
+        body = response.json()
+        assert body["market_summary"]["has_data"] is False
+        assert any(c["data_source"] == "manual" for c in body["competitors"])
+        assert "No licensed market extract" in body["positioning_gap_summary"]
+    finally:
+        market.delete_manual_competitor(entry["id"])
+
+
+def test_manual_entry_post_endpoint_rejects_a_missing_source():
+    response = client.post("/api/market/competitors/manual", json={
+        "molecule": "Semaglutide", "brand": "Testabrand",
+        "source_note": "", "added_by": "Test",
+    })
+    assert response.status_code == 422
+
+
+def test_manual_entry_post_endpoint_round_trip():
+    response = client.post("/api/market/competitors/manual", json={
+        "molecule": "Semaglutide", "brand": "TestBrandXYZ", "company": "Test Co",
+        "source_note": "Test source note", "added_by": "Tester",
+    })
+    assert response.status_code == 200
+    entry_id = response.json()["id"]
+    try:
+        listed = client.get("/api/market/competitors/manual", params={"molecule": "Semaglutide"}).json()
+        assert any(e["id"] == entry_id for e in listed)
+        deleted = client.delete(f"/api/market/competitors/manual/{entry_id}")
+        assert deleted.status_code == 200
+        deleted_again = client.delete(f"/api/market/competitors/manual/{entry_id}")
+        assert deleted_again.status_code == 404
+    finally:
+        market.delete_manual_competitor(entry_id)

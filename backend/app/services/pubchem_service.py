@@ -336,24 +336,24 @@ async def _combination_profile(resolved) -> MoleculeProfile:
 
     def _blank_pk():
         return Pharmacokinetics(
-            absorption="Not verified", bioavailability="Not verified", tmax="Not verified",
-            distribution="Not verified", protein_binding="Not verified",
-            metabolism="Not verified", cyp_pathways=[], elimination="Not verified",
-            half_life="Not verified", clearance="Not verified",
+            absorption="Not stated in the source record", bioavailability="Not stated in the source record", tmax="Not stated in the source record",
+            distribution="Not stated in the source record", protein_binding="Not stated in the source record",
+            metabolism="Not stated in the source record", cyp_pathways=[], elimination="Not stated in the source record",
+            half_life="Not stated in the source record", clearance="Not stated in the source record",
         )
 
     def _blank_sp():
         return SpecialPopulations(
-            pregnancy="Not verified", lactation="Not verified", pediatric="Not verified",
-            geriatric="Not verified", renal_impairment="Not verified",
-            hepatic_impairment="Not verified",
+            pregnancy="Not stated in the source record", lactation="Not stated in the source record", pediatric="Not stated in the source record",
+            geriatric="Not stated in the source record", renal_impairment="Not stated in the source record",
+            hepatic_impairment="Not stated in the source record",
         )
 
     if not component_profiles:
         return MoleculeProfile(
             generic_name=resolved.display_name,
-            chemical_class="Not verified",
-            pharmacological_class="Not verified",
+            chemical_class="Not stated in the source record",
+            pharmacological_class="Not stated in the source record",
             smiles="", molecular_formula="",
             mechanism_of_action="No component of this combination could be resolved.",
             pharmacodynamics="Not verified.",
@@ -377,7 +377,7 @@ async def _combination_profile(resolved) -> MoleculeProfile:
     classes = [
         f"{p.generic_name}: {p.pharmacological_class}"
         for p in component_profiles
-        if p.pharmacological_class and p.pharmacological_class != "Not verified"
+        if p.pharmacological_class and p.pharmacological_class != "Not stated in the source record"
     ]
     moa = " | ".join(
         f"{p.generic_name} — {p.mechanism_of_action}"
@@ -401,7 +401,7 @@ async def _combination_profile(resolved) -> MoleculeProfile:
         generic_name=resolved.display_name,
         chemical_name=" ; ".join(p.chemical_name for p in component_profiles if p.chemical_name) or None,
         chemical_class="Fixed-dose combination",
-        pharmacological_class="; ".join(classes) or "Not verified",
+        pharmacological_class="; ".join(classes) or "Not stated in the source record",
         cas_number=None,
         pubchem_cid=None,
         smiles=".".join(p.smiles for p in component_profiles if p.smiles),
@@ -436,7 +436,7 @@ async def fetch_molecule_intelligence(molecule_name: str) -> MoleculeProfile:
 
     PubChem is a chemical registry — it answers formula, weight, and structure,
     and carries no pharmacology at all. On its own it left every clinical field
-    reading "Not verified" for any molecule without a hand-written entry.
+    reading "Not stated in the source record" for any molecule without a hand-written entry.
 
     So the chemistry layer is built first and then enriched from the molecule's
     FDA structured product label, which is where class, mechanism, indications,
@@ -491,16 +491,16 @@ async def _chemistry_profile(molecule_name: str) -> MoleculeProfile:
                             mechanism_of_action="Not available from PubChem. Requires verified pharmacology source review.",
                             pharmacodynamics="Not available from PubChem. Requires verified clinical/pharmacology source review.",
                             pharmacokinetics=Pharmacokinetics(
-                                absorption="Not verified",
-                                bioavailability="Not verified",
-                                tmax="Not verified",
-                                distribution="Not verified",
-                                protein_binding="Not verified",
-                                metabolism="Not verified",
+                                absorption="Not stated in the source record",
+                                bioavailability="Not stated in the source record",
+                                tmax="Not stated in the source record",
+                                distribution="Not stated in the source record",
+                                protein_binding="Not stated in the source record",
+                                metabolism="Not stated in the source record",
                                 cyp_pathways=[],
-                                elimination="Not verified",
-                                half_life="Not verified",
-                                clearance="Not verified"
+                                elimination="Not stated in the source record",
+                                half_life="Not stated in the source record",
+                                clearance="Not stated in the source record"
                             ),
                             approved_indications=[],
                             investigational_indications=[],
@@ -516,12 +516,12 @@ async def _chemistry_profile(molecule_name: str) -> MoleculeProfile:
                                 serious=[]
                             ),
                             special_populations=SpecialPopulations(
-                                pregnancy="Not verified",
-                                lactation="Not verified",
-                                pediatric="Not verified",
-                                geriatric="Not verified",
-                                renal_impairment="Not verified",
-                                hepatic_impairment="Not verified"
+                                pregnancy="Not stated in the source record",
+                                lactation="Not stated in the source record",
+                                pediatric="Not stated in the source record",
+                                geriatric="Not stated in the source record",
+                                renal_impairment="Not stated in the source record",
+                                hepatic_impairment="Not stated in the source record"
                             ),
                             differentiating_science="Not assessed. Requires source-backed medical review.",
                             key_targets=[]
@@ -533,8 +533,8 @@ async def _chemistry_profile(molecule_name: str) -> MoleculeProfile:
     return MoleculeProfile(
         generic_name=molecule_name.title(),
         chemical_name=None,
-        chemical_class="Not verified",
-        pharmacological_class="Not verified",
+        chemical_class="Not stated in the source record",
+        pharmacological_class="Not stated in the source record",
         pubchem_cid=None,
         smiles="",
         molecular_formula="",
@@ -542,16 +542,16 @@ async def _chemistry_profile(molecule_name: str) -> MoleculeProfile:
         mechanism_of_action="No verified mechanism found. Add validated source before use.",
         pharmacodynamics="No verified pharmacodynamic data found.",
         pharmacokinetics=Pharmacokinetics(
-            absorption="Not verified",
-            bioavailability="Not verified",
-            tmax="Not verified",
-            distribution="Not verified",
-            protein_binding="Not verified",
-            metabolism="Not verified",
+            absorption="Not stated in the source record",
+            bioavailability="Not stated in the source record",
+            tmax="Not stated in the source record",
+            distribution="Not stated in the source record",
+            protein_binding="Not stated in the source record",
+            metabolism="Not stated in the source record",
             cyp_pathways=[],
-            elimination="Not verified",
-            half_life="Not verified",
-            clearance="Not verified"
+            elimination="Not stated in the source record",
+            half_life="Not stated in the source record",
+            clearance="Not stated in the source record"
         ),
         approved_indications=[],
         investigational_indications=[],
@@ -567,12 +567,12 @@ async def _chemistry_profile(molecule_name: str) -> MoleculeProfile:
             serious=[]
         ),
         special_populations=SpecialPopulations(
-            pregnancy="Not verified",
-            lactation="Not verified",
-            pediatric="Not verified",
-            geriatric="Not verified",
-            renal_impairment="Not verified",
-            hepatic_impairment="Not verified"
+            pregnancy="Not stated in the source record",
+            lactation="Not stated in the source record",
+            pediatric="Not stated in the source record",
+            geriatric="Not stated in the source record",
+            renal_impairment="Not stated in the source record",
+            hepatic_impairment="Not stated in the source record"
         ),
         differentiating_science="No verified differentiation claim is available.",
         key_targets=[]
@@ -584,7 +584,7 @@ async def _enrich_from_label(profile: MoleculeProfile, molecule_name: str) -> Mo
 
     PubChem is a chemical registry — formula, weight, SMILES. It has no
     pharmacology, so every clinical field on a non-curated molecule rendered
-    "Not verified". Those exact fields live on the FDA structured product label.
+    "Not stated in the source record". Those exact fields live on the FDA structured product label.
 
     Only empty fields are filled: a curated or PubChem-supplied value always
     wins, and a label section the SPL omits leaves the field as it was rather
@@ -598,7 +598,7 @@ async def _enrich_from_label(profile: MoleculeProfile, molecule_name: str) -> Mo
     if not clinical:
         return profile
 
-    _PLACEHOLDER = ("not verified", "not available", "")
+    _PLACEHOLDER = ("not stated in the source record", "not verified", "not available", "")
 
     def blank(value) -> bool:
         if value is None:

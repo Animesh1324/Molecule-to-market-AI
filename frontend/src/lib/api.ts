@@ -287,6 +287,58 @@ export async function fetchEntireCorpus(molecule: string, indication?: string) {
 }
 
 /** Every secondary-data extract ingested into the market tables. */
+export interface ManualCompetitor {
+  id: string;
+  molecule_desc: string;
+  brand: string;
+  company?: string | null;
+  market?: string | null;
+  value_estimate?: number | null;
+  value_unit?: string | null;
+  value_basis?: string | null;
+  source_note: string;
+  added_by: string;
+  added_at: string;
+}
+
+/** Team-attested competitors for a molecule a licensed extract doesn't cover. */
+export async function fetchManualCompetitors(molecule: string): Promise<ManualCompetitor[]> {
+  const res = await fetch(
+    `${API_BASE}/api/market/competitors/manual?molecule=${encodeURIComponent(molecule)}`,
+    { cache: 'no-store', headers: authHeaders() }
+  );
+  if (!res.ok) throw await apiError(res, 'Failed to fetch manual competitors');
+  return res.json();
+}
+
+export async function addManualCompetitor(payload: {
+  molecule: string;
+  brand: string;
+  source_note: string;
+  added_by: string;
+  company?: string;
+  market?: string;
+  value_estimate?: number;
+  value_unit?: string;
+  value_basis?: string;
+}): Promise<ManualCompetitor> {
+  const res = await fetch(`${API_BASE}/api/market/competitors/manual`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...authHeaders() },
+    body: JSON.stringify(payload),
+  });
+  if (!res.ok) throw await apiError(res, 'Failed to add competitor');
+  return res.json();
+}
+
+export async function deleteManualCompetitor(id: string): Promise<void> {
+  const res = await fetch(`${API_BASE}/api/market/competitors/manual/${encodeURIComponent(id)}`, {
+    method: 'DELETE',
+    headers: authHeaders(),
+  });
+  if (!res.ok) throw await apiError(res, 'Failed to delete competitor');
+}
+
 export async function fetchMarketDatasets(): Promise<MarketDataset[]> {
   const res = await fetch(`${API_BASE}/api/market/datasets`, {
     cache: 'no-store',

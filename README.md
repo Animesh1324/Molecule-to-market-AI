@@ -333,3 +333,7 @@ Read these before using output in a real brand plan.
 
 The repo includes GitHub Actions workflows under `.github/workflows` for CI and image publishing.
 
+## Developer
+
+Built by [Animesh Mishra](https://github.com/Animesh1324).
+

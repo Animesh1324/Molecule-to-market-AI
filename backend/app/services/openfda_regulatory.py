@@ -358,6 +358,23 @@ _HALFLIFE_RE = re.compile(
     re.IGNORECASE)
 _PROTEIN_RE = re.compile(r"(\d{1,3}(?:\.\d+)?\s*%)[^.]{0,60}bound to (?:human )?plasma protein"
                          r"|protein[- ]?binding[^.]{0,60}?(\d{1,3}(?:\.\d+)?\s*%)", re.IGNORECASE)
+# Verified against live label text for Rosuvastatin, Pantoprazole, Osimertinib
+# before wiring in — these three fields were never extracted at all before
+# (only absorption/distribution/metabolism/elimination/half_life/protein_binding
+# were), so every non-curated molecule showed the PubChem-fallback's literal
+# "Not verified" placeholder for bioavailability, Tmax, and clearance
+# regardless of whether the label actually stated one.
+_BIOAVAIL_RE = re.compile(
+    r"(?:absolute\s+)?bioavailability[^.]{0,40}?(?:is|of)\s+(?:approximately\s+)?"
+    r"(\d+(?:\.\d+)?(?:\s*(?:to|-|–)\s*\d+(?:\.\d+)?)?\s*%)", re.IGNORECASE)
+_CLEARANCE_RE = re.compile(
+    r"clearance[^.]{0,60}?(?:is|was)\s+(?:approximately\s+)?"
+    r"(\d+(?:\.\d+)?(?:\s*(?:to|-|–)\s*\d+(?:\.\d+)?)?\s*\(?\s*(?:L/h|mL/min|L/min|mL/h)\s*\)?)",
+    re.IGNORECASE)
+_TMAX_RE = re.compile(
+    r"t\s*max[^.]{0,60}?(?:is|of|was)\s+(?:approximately\s+)?"
+    r"(\d+(?:\.\d+)?(?:\s*(?:to|-|–)\s*\d+(?:\.\d+)?)?\s*(?:hours?|hrs?|h\b|minutes?|min\b))",
+    re.IGNORECASE)
 
 
 def _sentence_with(text: str, keywords: tuple) -> str:
@@ -474,6 +491,9 @@ async def fetch_molecule_clinical_profile(molecule: str) -> Optional[Dict[str, A
     }
     pharmacokinetics["half_life"] = _match(_HALFLIFE_RE, pharmacology)
     pharmacokinetics["protein_binding"] = _match(_PROTEIN_RE, pharmacology)
+    pharmacokinetics["bioavailability"] = _match(_BIOAVAIL_RE, pharmacology)
+    pharmacokinetics["clearance"] = _match(_CLEARANCE_RE, pharmacology)
+    pharmacokinetics["tmax"] = _match(_TMAX_RE, pharmacology)
     pharmacokinetics["cyp_pathways"] = sorted({
         f"CYP{m.group(1).upper()}" for m in _CYP_RE.finditer(pharmacology)
     })[:8]

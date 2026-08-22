@@ -35,6 +35,7 @@ import PatientFunnel from '../../../components/PatientFunnel';
 import ForecastCharts from '../../../components/ForecastCharts';
 import PositioningMatrix from '../../../components/PositioningMatrix';
 import MarketIntelligencePanel from '../../../components/MarketIntelligencePanel';
+import ManualCompetitorPanel from '../../../components/ManualCompetitorPanel';
 import VisualAidCarousel from '../../../components/VisualAidCarousel';
 import MRObjectionSimulator from '../../../components/MRObjectionSimulator';
 import AICoPilotDrawer from '../../../components/AICoPilotDrawer';
@@ -1176,6 +1177,11 @@ export default function ProjectWorkspacePage() {
               classRivals={competitors.class_rivals}
               moleculeName={project.target_molecule_name}
             />
+
+            {/* A licensed extract can be silent on a brand that launched or
+                scaled after its period — this is the path for a team to
+                record one anyway, always with its own source. */}
+            <ManualCompetitorPanel moleculeName={project.target_molecule_name} />
 
             {/* 2x2 Positioning Quadrant. Only curated rows carry the efficacy /
                 safety coordinates a quadrant needs — an audit extract measures

@@ -1,5 +1,6 @@
 {
   "name": "molecule-to-market-ai-frontend",
+  "author": "Animesh Mishra",
   "version": "1.0.0",
   "private": true,
   "scripts": {

@@ -124,6 +124,30 @@ def _market_competitors(molecule_name: str) -> Dict[str, Any]:
     return overview or {}
 
 
+def _profile_from_manual(index: int, row: Dict[str, Any]) -> CompetitorProfile:
+    """A team-attested competitor as a profile row.
+
+    Strategy fields stay blank for the same reason as a secondary_market row:
+    a brand's existence and who reported it is not a positioning strategy.
+    Unlike secondary_market, there is no dataset/period to display — instead
+    the source note and who added it are carried, since that IS the
+    provenance for a manual row.
+    """
+    return CompetitorProfile(
+        id=f"MANUAL-{index}",
+        molecule=row.get("molecule_desc") or "",
+        brand_name=row.get("brand") or "",
+        company=row.get("company") or "Not stated",
+        data_source="manual",
+        source_label=row.get("value_basis"),
+        market_value=row.get("value_estimate"),
+        value_unit=row.get("value_unit"),
+        source_note=row.get("source_note"),
+        added_by=row.get("added_by"),
+        added_at=row.get("added_at"),
+    )
+
+
 def _profile_from_market(index: int, row: Dict[str, Any], unit: str,
                          source_label: Optional[str]) -> CompetitorProfile:
     """Turn one aggregated brand row into a competitor profile.
@@ -178,6 +202,7 @@ def generate_competitor_intelligence(
     overview = _market_competitors(molecule_name)
     market_brands = overview.get("brands") or []
     datasets = overview.get("datasets") or []
+    manual_entries = market.list_manual_competitors(molecule_name)
     unit = datasets[0]["value_unit"] if datasets else "INR Cr"
     market_name = datasets[0]["market"] if datasets else None
     source_label = datasets[0]["source_label"] if datasets else None
@@ -192,6 +217,9 @@ def generate_competitor_intelligence(
     # marketed brands of this one — so the two layers do not overlap.
     for position, row in enumerate(market_brands[:max_market_brands], start=1):
         competitors.append(_profile_from_market(position, row, unit, source_label))
+
+    for position, row in enumerate(manual_entries, start=1):
+        competitors.append(_profile_from_manual(position, row))
 
     class_block = overview.get("class") or {}
     class_rivals = [ClassRival(**{
@@ -232,6 +260,9 @@ def generate_competitor_intelligence(
         sources.append("Curated competitor research")
     if market_brands and source_label:
         sources.append(source_label)
+    if manual_entries:
+        sources.append(f"{len(manual_entries)} team-attested entr"
+                       f"{'y' if len(manual_entries) == 1 else 'ies'}")
 
     if curated:
         swot = SWOTAnalysis(**curated["swot_analysis"])
@@ -257,6 +288,30 @@ def generate_competitor_intelligence(
             f"brands and {summary.total_companies} companies ({overview.get('period')}). "
             "Share and growth are audited facts; positioning and claims are not — those "
             "still need label verification and MLR review before use."
+        )
+        differentiators = []
+    elif manual_entries:
+        # No licensed extract covers this molecule at all, but a team has
+        # attested to real competitors anyway — distinct from both the
+        # licensed-data branch above (which has a market size to report) and
+        # the no-data branch below (which would otherwise wrongly claim
+        # nothing is known).
+        names = ", ".join(f"{e.get('brand')} ({e.get('company')})" for e in manual_entries[:5])
+        swot = SWOTAnalysis(
+            strengths=[],
+            weaknesses=[],
+            opportunities=[],
+            threats=[
+                f"No licensed market extract covers this molecule. {len(manual_entries)} "
+                f"team-attested competitor(s) on file instead: {names}.",
+                "These are not independently audited — verify each against a licensed "
+                "extract or the source stated on the entry before using in a plan.",
+            ],
+        )
+        gap_summary = (
+            f"No licensed market extract covers this molecule — market size and share "
+            f"cannot be measured. {len(manual_entries)} competitor(s) recorded manually, "
+            "each with its own stated source; treat as leads to verify, not audited facts."
         )
         differentiators = []
     else:

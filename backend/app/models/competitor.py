@@ -24,9 +24,10 @@ class CompetitorProfile(BaseModel):
     quadrant_y_safety_convenience: float = 0.0  # -10 to +10
 
     # Provenance. "curated" rows carry hand-checked strategy text; "secondary_market"
-    # rows are measured sales facts from an ingested audit extract and deliberately
-    # leave the strategy fields blank rather than inventing them.
-    data_source: str = "curated"
+    # rows are measured sales facts from an ingested audit extract; "manual" rows
+    # are a team's own attestation — real, but not independently audited the way
+    # a licensed extract is, so never rendered at the same confidence tier.
+    data_source: str = "curated"  # curated | secondary_market | manual
     source_label: Optional[str] = None
 
     # Measured market facts. Present only on secondary_market rows.
@@ -41,6 +42,11 @@ class CompetitorProfile(BaseModel):
     is_combination: bool = False
     therapy_group: Optional[str] = None
     subgroup: Optional[str] = None
+
+    # Present only on manual rows.
+    source_note: Optional[str] = None
+    added_by: Optional[str] = None
+    added_at: Optional[str] = None
 
 
 class ClassRival(BaseModel):

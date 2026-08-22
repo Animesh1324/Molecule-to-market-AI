@@ -53,6 +53,9 @@ export default function RootLayout({
               <div>
                 Built for Brand Managers, Medical Affairs &amp; Launch Teams | Review-Required Draft Outputs
               </div>
+              <div className="text-slate-400 dark:text-slate-600">
+                Developed by Animesh Mishra
+              </div>
             </div>
           </footer>
         </ThemeProvider>

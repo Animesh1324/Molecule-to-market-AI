@@ -233,3 +233,50 @@ def test_market_status_anda_count_excludes_combination_andas():
     })
 
     assert "no ANDA" in result["market_status"]
+
+
+# --------------------------------------------------------------------------
+# bioavailability / clearance / Tmax extraction and the placeholder wording
+#
+# These three Pharmacokinetics fields were never extracted from the label at
+# all — only absorption/distribution/metabolism/elimination/half_life/
+# protein_binding were — so every non-curated molecule showed the literal
+# string "Not verified" for them regardless of what the label actually said.
+# Found by walking a fresh, never-tested molecule through the live app.
+# --------------------------------------------------------------------------
+
+def test_bioavailability_is_extracted_when_stated():
+    text = "The absolute bioavailability of the drug is approximately 20%."
+    match = R._BIOAVAIL_RE.search(text)
+    assert match and match.group(1) == "20%"
+
+
+def test_clearance_is_extracted_with_parenthesised_unit():
+    """FDA labels sometimes wrap the unit in parentheses: '14.3 (L/h)'."""
+    text = "the estimated mean half-life was 48 hours, and oral clearance (CL/F) was 14.3 (L/h)."
+    match = R._CLEARANCE_RE.search(text)
+    assert match and "14.3" in match.group(1)
+
+
+def test_tmax_is_extracted_despite_odd_label_spacing():
+    """Extracted PDF-derived label text sometimes spaces it '(t max )'."""
+    text = "the time to reach the peak concentration (t max ) is 2.5 h, and the mean total area..."
+    match = R._TMAX_RE.search(text)
+    assert match and "2.5" in match.group(1)
+
+
+def test_placeholder_text_and_its_own_blank_detector_stay_in_sync():
+    """"Not verified" implied a fact was checked and could not be confirmed.
+    The truth for an unstated PK field is narrower — the label's narrative
+    text simply doesn't discuss it — so the placeholder was reworded to say
+    that plainly. This pins the property that actually matters: whatever the
+    placeholder text is, pubchem_service's own blank() detector must
+    recognise it, or a real openFDA value will silently stop overwriting it —
+    exactly the regression this fix introduced and caught before it shipped.
+    """
+    import inspect
+    from app.services import pubchem_service as PC
+
+    source = inspect.getsource(PC)
+    assert '"Not stated in the source record"' in source
+    assert '"not stated in the source record"' in source.lower()

@@ -31,6 +31,7 @@ from typing import Any, Dict, Iterable, Iterator, List, Optional, Tuple
 from sqlalchemy import and_, func, or_
 
 from ..db.database import SessionLocal
+from ..db.manual_competitor_models import ManualCompetitorORM
 from ..db.market_models import MarketBrandORM, MarketDatasetORM
 
 logger = logging.getLogger(__name__)
@@ -794,5 +795,102 @@ def count_companies(molecule: str) -> int:
                         MarketBrandORM.dataset_id == dataset_id,
                         MarketBrandORM.company.isnot(None))
                 .scalar() or 0)
+    finally:
+        session.close()
+
+
+# --------------------------------------------------------------------------
+# Manual competitors
+#
+# A licensed extract answers "who competed as of the file's period" — it can
+# be silent on a brand that launched or scaled after that date, or on any
+# market no extract has ever been loaded for. This lets a team record a
+# competitor it knows is real, with its own source, without ever presenting
+# that attestation as if it carried the same audit weight as a licensed row.
+# --------------------------------------------------------------------------
+
+def add_manual_competitor(
+    molecule: str,
+    brand: str,
+    source_note: str,
+    added_by: str,
+    company: Optional[str] = None,
+    market: Optional[str] = None,
+    value_estimate: Optional[float] = None,
+    value_unit: Optional[str] = None,
+    value_basis: Optional[str] = None,
+) -> Dict[str, Any]:
+    """Record a team-attested competitor. `source_note` is mandatory — an
+    entry with no stated source is exactly the unsourced claim this
+    application exists to prevent.
+    """
+    if not source_note or not source_note.strip():
+        raise ValueError("A manual competitor entry must state its source.")
+
+    record = ManualCompetitorORM(
+        id=uuid.uuid4().hex,
+        molecule_key=molecule_search_key(molecule),
+        molecule_desc=molecule.strip(),
+        brand=brand.strip(),
+        company=(company or "").strip() or None,
+        market=(market or "").strip() or None,
+        value_estimate=value_estimate,
+        value_unit=(value_unit or "").strip() or None,
+        value_basis=(value_basis or "").strip() or None,
+        source_note=source_note.strip(),
+        added_by=added_by.strip() or "Unattributed",
+        added_at=datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+    )
+    session = SessionLocal()
+    try:
+        session.add(record)
+        session.commit()
+    except Exception:
+        session.rollback()
+        raise
+    finally:
+        session.close()
+    return _manual_competitor_dict(record)
+
+
+def _manual_competitor_dict(row) -> Dict[str, Any]:
+    return {
+        "id": row.id,
+        "molecule_desc": row.molecule_desc,
+        "brand": row.brand,
+        "company": row.company,
+        "market": row.market,
+        "value_estimate": row.value_estimate,
+        "value_unit": row.value_unit,
+        "value_basis": row.value_basis,
+        "source_note": row.source_note,
+        "added_by": row.added_by,
+        "added_at": row.added_at,
+    }
+
+
+def list_manual_competitors(molecule: str) -> List[Dict[str, Any]]:
+    key = molecule_search_key(molecule)
+    if not key:
+        return []
+    session = SessionLocal()
+    try:
+        rows = (session.query(ManualCompetitorORM)
+                .filter(ManualCompetitorORM.molecule_key.like(f"%{key}%"))
+                .order_by(ManualCompetitorORM.added_at.desc()).all())
+        return [_manual_competitor_dict(r) for r in rows]
+    finally:
+        session.close()
+
+
+def delete_manual_competitor(entry_id: str) -> bool:
+    session = SessionLocal()
+    try:
+        row = session.get(ManualCompetitorORM, entry_id)
+        if not row:
+            return False
+        session.delete(row)
+        session.commit()
+        return True
     finally:
         session.close()

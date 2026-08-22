@@ -9,6 +9,7 @@ from ..services import ai_drafting
 from ..services.claude_client import is_configured as ai_configured
 from ..services.pubchem_service import fetch_molecule_intelligence
 from ..services.pubmed_service import search_pubmed_evidence
+from ..services.competitor_service import generate_competitor_intelligence
 from ..db import database as db
 
 logger = logging.getLogger(__name__)
@@ -90,19 +91,37 @@ async def get_or_generate_brand_plan(
                 # If stored data is incompatible, fall through to regenerate
                 pass
 
+    # Fetched unconditionally, not just when AI drafting is on: the
+    # deterministic template is what most deployments actually run (no
+    # Anthropic key configured), and it should still state the real
+    # competitors and market data already on file rather than a bare
+    # placeholder. Best-effort — a lookup failure degrades to no competitor
+    # section rather than failing plan generation.
+    try:
+        competitor_intelligence = generate_competitor_intelligence(molecule, indication)
+        competitor_data = (
+            competitor_intelligence.model_dump()
+            if hasattr(competitor_intelligence, "model_dump")
+            else competitor_intelligence.dict()
+        )
+    except Exception:
+        logger.warning("Competitor grounding unavailable for %s", molecule, exc_info=True)
+        competitor_data = None
+
     plan = generate_strategic_brand_plan(
         project_id=project_id,
         molecule_name=molecule,
         brand_name=brand_name,
         therapy_area=therapy_area,
         indication=indication,
-        target_geography=target_geography
+        target_geography=target_geography,
+        competitor_data=competitor_data,
     )
 
     if ai and ai_configured():
         molecule_profile, evidence = await _grounding_for(molecule, indication)
         plan = await ai_drafting.draft_brand_plan(
-            plan, molecule=molecule_profile, evidence=evidence
+            plan, molecule=molecule_profile, evidence=evidence, competitors=competitor_data
         )
 
     # persist serialized plan

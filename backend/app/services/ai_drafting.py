@@ -113,6 +113,7 @@ def _format_grounding(
     plan: CompleteBrandPlan,
     molecule: Optional[Dict[str, Any]],
     evidence: Optional[List[Dict[str, Any]]],
+    competitors: Optional[Dict[str, Any]] = None,
 ) -> str:
     """Render only verified, app-fetched facts into the prompt."""
     lines = [
@@ -155,6 +156,28 @@ def _format_grounding(
         )
     else:
         lines += ["", "## Evidence on file", "- None supplied. Treat the evidence base as an open gap."]
+
+    competitor_rows = (competitors or {}).get("competitors") or []
+    if competitor_rows:
+        summary = (competitors or {}).get("market_summary") or {}
+        lines += ["", "## Competitors on file (measured facts — cite, do not invent share or claims beyond these)"]
+        if summary.get("has_data"):
+            lines.append(
+                f"- Measured market: {summary.get('market_size')} {summary.get('value_unit')} "
+                f"across {summary.get('total_brands')} brands ({summary.get('period')})."
+            )
+        for row in competitor_rows[:8]:
+            share = row.get("market_share_percentage")
+            tag = " [team-attested, unaudited]" if row.get("data_source") == "manual" else ""
+            share_text = f", {share:.1f}% share" if share else ""
+            lines.append(f"- {row.get('brand_name')} ({row.get('company')}){share_text}{tag}")
+        lines.append(
+            "These are the only competitor facts you may use. Do not name a "
+            "competitor, a share, or a claim that is not listed here."
+        )
+    else:
+        lines += ["", "## Competitors on file",
+                  "- None supplied. Do not name any competitor by name or invent a market share."]
 
     lines += ["", "## Sections to draft"]
     for section in plan.sections:
@@ -215,6 +238,7 @@ async def draft_brand_plan(
     *,
     molecule: Optional[Dict[str, Any]] = None,
     evidence: Optional[List[Dict[str, Any]]] = None,
+    competitors: Optional[Dict[str, Any]] = None,
 ) -> CompleteBrandPlan:
     """Return `plan` with its narrative sections drafted by Claude.
 
@@ -228,7 +252,7 @@ async def draft_brand_plan(
         return CompleteBrandPlan(**plan_data)
 
     prompt = (
-        f"{_format_grounding(plan, molecule, evidence)}\n\n"
+        f"{_format_grounding(plan, molecule, evidence, competitors)}\n\n"
         "Draft the strategy narrative for this brand plan. Return one entry in "
         "`sections` for every section listed above, keyed by its section_id. "
         "Follow every rule in your instructions — this draft goes to MLR review, "

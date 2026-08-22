@@ -107,3 +107,60 @@ async def search(
 ) -> List[Dict[str, Any]]:
     """Free-text lookup across every ingested extract."""
     return market.search_brands(q, limit=limit)
+
+
+class ManualCompetitorRequest(BaseModel):
+    molecule: str = Field(..., min_length=1, max_length=200,
+                          description="Molecule/INN this competitor is for")
+    brand: str = Field(..., min_length=1, max_length=160, description="Competitor brand name")
+    source_note: str = Field(..., min_length=3, max_length=1000, description=(
+        "Where this fact comes from — mandatory. An entry with no stated "
+        "source is indistinguishable from a guess."))
+    added_by: str = Field(..., min_length=1, max_length=120, description="Who is attesting to this")
+    company: Optional[str] = Field(None, max_length=160)
+    market: Optional[str] = Field(None, max_length=80)
+    value_estimate: Optional[float] = Field(None, ge=0, le=1_000_000_000)
+    value_unit: Optional[str] = Field(None, max_length=20)
+    value_basis: Optional[str] = Field(
+        None, max_length=500, description="How the value was arrived at, if one is given")
+
+
+@router.get("/competitors/manual")
+async def get_manual_competitors(
+    molecule: str = Query(..., description="Molecule/INN to look up"),
+) -> List[Dict[str, Any]]:
+    """Every team-attested competitor on file for a molecule."""
+    return market.list_manual_competitors(molecule)
+
+
+@router.post("/competitors/manual")
+async def add_manual_competitor_endpoint(request: ManualCompetitorRequest) -> Dict[str, Any]:
+    """Record a competitor a licensed extract doesn't cover.
+
+    For a brand a team knows is real and marketed but which is newer than the
+    loaded extract's period, or in a market no extract has ever been loaded
+    for. Never merged into the licensed market-size numbers — always shown
+    with its own source and who added it.
+    """
+    try:
+        return market.add_manual_competitor(
+            molecule=request.molecule,
+            brand=request.brand,
+            source_note=request.source_note,
+            added_by=request.added_by,
+            company=request.company,
+            market=request.market,
+            value_estimate=request.value_estimate,
+            value_unit=request.value_unit,
+            value_basis=request.value_basis,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+
+@router.delete("/competitors/manual/{entry_id}")
+async def remove_manual_competitor(entry_id: str) -> Dict[str, Any]:
+    removed = market.delete_manual_competitor(entry_id)
+    if not removed:
+        raise HTTPException(status_code=404, detail="No manual competitor entry with that id.")
+    return {"deleted": entry_id}

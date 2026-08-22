@@ -3,20 +3,85 @@ from typing import Dict, Any, List, Optional
 from ..models.brand_plan import CompleteBrandPlan, BrandPlanSection, KPIMetric, MonthlyTacticalMilestone
 from ..models.assets import CreativeCommercialAssets, VisualAidSlide, LBLBrief, MRObjectionHandling, PatientEducationLeaflet
 
+def _competitor_section_text(competitor_data: Optional[Dict[str, Any]]) -> tuple:
+    """Real competitor facts for the template, or the honest placeholder.
+
+    Only ever states what `competitor_data` itself already measured — the
+    brand names, companies, share, and growth `generate_competitor_intelligence`
+    sourced from a licensed extract or a team's own attested entry. Nothing
+    here infers a strategy or a claim; that stays explicitly marked as pending
+    review, same as before this data existed.
+    """
+    if not competitor_data:
+        return (
+            "### Competitive Defense & Differentiation Gap\n\nBuild competitor "
+            "comparison from verified labels, trial publications, pricing sources, "
+            "access data, and approved claim language.",
+            "Differentiation pending source-backed competitor and label comparison.",
+        )
+
+    rows = competitor_data.get("competitors") or []
+    summary = competitor_data.get("market_summary") or {}
+    if not rows:
+        return (
+            "### Competitive Defense & Differentiation Gap\n\nNo source-backed "
+            "competitor set is on file for this molecule yet. Upload a licensed "
+            "market extract, or record a known competitor manually, before this "
+            "section can be built.",
+            "Differentiation pending source-backed competitor and label comparison.",
+        )
+
+    lines = ["### Competitive Defense & Differentiation Gap", ""]
+    if summary.get("has_data"):
+        lines.append(
+            f"**Measured market**: {summary.get('market_size')} {summary.get('value_unit')} "
+            f"across {summary.get('total_brands')} brands and {summary.get('total_companies')} "
+            f"companies in {summary.get('market')} ({summary.get('period')})."
+        )
+        lines.append("")
+    lines.append("**Brands on file:**")
+    for row in rows[:8]:
+        share = row.get("market_share_percentage")
+        share_text = f" — {share:.1f}% share" if share else ""
+        tag = " *(team-attested, unaudited)*" if row.get("data_source") == "manual" else ""
+        lines.append(f"- {row.get('brand_name')} ({row.get('company')}){share_text}{tag}")
+    lines.append("")
+    lines.append(
+        "Positioning, claims, and messaging above are not yet drafted — the "
+        "figures here are measured facts, not a differentiation strategy. "
+        "Complete that comparison against verified labels and approved claim "
+        "language before use."
+    )
+
+    gap_text = (
+        f"{len(rows)} competitor(s) on file for this molecule "
+        f"({summary.get('period', 'no licensed period on file')}). Positioning and "
+        "claim-level differentiation still require source-backed comparison."
+    )
+    return "\n".join(lines), gap_text
+
+
 def generate_strategic_brand_plan(
     project_id: str,
     molecule_name: str,
     brand_name: Optional[str] = None,
     therapy_area: str = "Cardiometabolic",
     indication: str = "Heart Failure & Chronic Kidney Disease in Type 2 Diabetes",
-    target_geography: str = "Global"
+    target_geography: str = "Global",
+    competitor_data: Optional[Dict[str, Any]] = None,
 ) -> CompleteBrandPlan:
     """Create a draft brand plan scaffold.
 
     This function is deliberately conservative: it produces planning structure
     and placeholders, not verified medical claims. MLR signoff is false until
     claim-level evidence and label review are completed.
+
+    `competitor_data` (from `generate_competitor_intelligence`) is optional and
+    additive: when supplied, the competitive-defense section states the real
+    brands, companies, and measured share already on file instead of a bare
+    placeholder — every other section is unaffected.
     """
+    competitor_markdown, competitor_gap_text = _competitor_section_text(competitor_data)
     
     brand = brand_name or f"{molecule_name.title()} Brand"
     mol = molecule_name.title()
@@ -73,7 +138,7 @@ def generate_strategic_brand_plan(
             section_id="sec-6",
             section_title="6. Competitive Defense & Differentiation Gap",
             section_category="Commercial Strategy",
-            content_markdown=f"### Competitive Defense & Differentiation Gap\n\nBuild competitor comparison from verified labels, trial publications, pricing sources, access data, and approved claim language.",
+            content_markdown=competitor_markdown,
             key_takeaways=["No unsourced superiority claims", "Add competitor claim sources"],
             citations=[{"ref": "SOURCE_NEEDED", "note": "Competitor source review required"}]
         ),
@@ -157,7 +222,7 @@ def generate_strategic_brand_plan(
         therapy_area_opportunity=f"Opportunity sizing for {therapy_area} requires sourced epidemiology and access assumptions.",
         target_customer_and_patient_profile=f"Specialist and generalist segments should be validated for {indication} in {target_geography}.",
         doctor_and_market_insights="Insights are placeholders until validated by market research or advisory input.",
-        competitor_gap_and_differentiation="Differentiation pending source-backed competitor and label comparison.",
+        competitor_gap_and_differentiation=competitor_gap_text,
         positioning_statement=f"Draft positioning for {brand}; final claims require MLR and legal approval.",
         brand_promise_and_rtb="Reasons to believe pending citation-level evidence mapping.",
         key_messages_and_claim_strategy="Key messages are not claim-ready until evidence, label, and fair-balance review are complete.",
