@@ -161,7 +161,7 @@ application keeps working when any one upstream is unavailable:
 
 | Source | Status |
 | --- | --- |
-| openFDA | Enabled — public FDA API |
+| openFDA | Enabled — public FDA API, plus bulk corpus load |
 | Drugs.com | Disabled without a licensed feed (`DRUGS_COM_API_KEY`) |
 | Manual import | Enabled — team-entered records |
 
@@ -170,6 +170,14 @@ its terms prohibit automated extraction, and its content is copyrighted — and
 scraped text could not be cited in an MLR-reviewed plan regardless. The adapter
 targets the licensed Drugs.com/DrugBank feed and activates on configuration.
 For patient-reported problems the application uses FDA FAERS instead.
+
+The catalogue can be bulk-loaded from openFDA's published partitions — the
+live API caps `skip` at 25,000 records and cannot reach the ~137k marketed
+products or ~262k labels the FDA publishes:
+
+```bash
+cd backend && ./.venv/bin/python scripts/ingest_openfda_bulk.py --limit 5000
+```
 
 Full documentation: [docs/DRUG_INTELLIGENCE.md](docs/DRUG_INTELLIGENCE.md).
 

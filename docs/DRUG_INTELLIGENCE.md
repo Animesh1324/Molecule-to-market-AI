@@ -179,6 +179,56 @@ curl -X POST http://localhost:8000/api/drugs/refresh \
 Returns a per-source outcome for each query. Inspect history at
 `GET /api/drugs/refresh/history`.
 
+## Bulk catalogue load
+
+The refresh endpoint above fetches one query at a time against the live API.
+That cannot fill the catalogue: openFDA caps `skip` at 25,000 records, so
+paging the API can never reach the ~137k marketed products or ~262k labels the
+FDA publishes. openFDA also publishes the same data as complete downloadable
+partitions, with no cap and no rate limit, and
+`backend/scripts/ingest_openfda_bulk.py` loads those.
+
+```bash
+cd backend
+
+# A representative slice for a dev database (minutes)
+./.venv/bin/python scripts/ingest_openfda_bulk.py --limit 5000
+
+# Product identity only, no clinical narrative
+./.venv/bin/python scripts/ingest_openfda_bulk.py --datasets ndc
+
+# The full corpus (hours; ~15 GB transient download, deleted as it loads)
+./.venv/bin/python scripts/ingest_openfda_bulk.py
+```
+
+NDC loads before label by design: NDC establishes product identity across the
+catalogue, and the label pass then layers clinical narrative onto those rows
+through the repository's existing non-destructive merge. Records are written
+via `drug_repository.upsert_drug`, so bulk rows are indistinguishable from
+query-loaded ones and carry the same provenance. Re-running is safe — records
+upsert on `(generic_name, brand_name)`.
+
+No API key is needed; bulk downloads are unauthenticated. An openFDA key
+raises live-API rate limits but does not lift the `skip` cap, which is why
+bulk partitions rather than a key are the answer to catalogue coverage.
+
+What to expect from a full load:
+
+| | |
+| --- | --- |
+| NDC records | ~137k products, deduplicating to fewer drugs |
+| Labels read | ~262k |
+| Labels usable | ~20% |
+| Class coverage | ~50% of NDC rows carry `pharm_class` |
+
+**About 80% of SPL label records carry no `openfda` annotation block**, so they
+have no resolvable generic name and cannot become a record without inventing an
+identity. Those are dropped and reported as `unidentifiable` in the load
+summary rather than silently discarded.
+
+Memory stays flat regardless of corpus size: partitions run to about a gigabyte
+of JSON each and are streamed with an incremental decoder, never `json.load`.
+
 ## Limitations
 
 - **Structured pairwise interactions require a licensed feed.** openFDA carries
@@ -190,6 +240,9 @@ Returns a per-source outcome for each query. Inspect history at
   manual import path for those.
 - **No sales, pricing, or trade-margin data.** That is licensed commercial data
   (IQVIA, AIOCD-AWACS) and is not available from any public source.
+- **A bulk load is a snapshot, not a subscription.** openFDA republishes
+  partitions periodically; the loaded catalogue is only as current as the
+  `export_date` recorded on each record's provenance row. Re-run to refresh.
 
 ## Testing
 
