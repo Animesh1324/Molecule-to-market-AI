@@ -123,7 +123,11 @@ Then redeploy the frontend, since `NEXT_PUBLIC_API_BASE` is baked in at build ti
 
 ## AI drafting (optional)
 
-Set `ANTHROPIC_API_KEY` to have Claude draft the brand plan's strategy narrative.
+Set `ANTHROPIC_API_KEY` to have Claude draft the brand plan's strategy narrative,
+the AI Co-Pilot chat, AI-drafted brand-name candidates (Modules 12/13), and the
+visual aid brief's punchline/messaging (Module 15). Without a key, every one of
+these degrades honestly to a labeled deterministic template or an explicit
+"needs an API key" message — never a fabricated stand-in for real AI output.
 
 ```bash
 export ANTHROPIC_API_KEY=sk-ant-...

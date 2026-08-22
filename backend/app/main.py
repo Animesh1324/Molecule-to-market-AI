@@ -133,7 +133,7 @@ async def root():
         "system": "Molecule to Market AI Engine",
         "status": "Operational",
         "version": "1.0.0",
-        "modules_active": 15,
+        "modules_active": 16,
         "compliance_mode": "FDA OPDP / CDSCO UCPMP / EMA Fair Balance Active",
         "environment": settings["app_env"],
         "authentication": "required" if auth_required() else "open (no API_ACCESS_TOKEN set)",
