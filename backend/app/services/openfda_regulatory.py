@@ -117,13 +117,20 @@ def _first(values: Optional[List[str]], limit: int = 900) -> str:
 def _is_combination_generic_name(name: str) -> bool:
     """Whether an openFDA generic_name string names more than one ingredient.
 
-    FDA writes combination generic names as "X AND Y" or "X, Y, Z" — verified
-    against live label data: 'EMPAGLIFLOZIN AND METFORMIN HYDROCHLORIDE',
-    'EMPAGLIFLOZIN, LINAGLIPTIN, METFORMIN HYDROCHLORIDE'. A single-ingredient
-    name never contains either separator.
+    FDA writes combination generic names as "X AND Y" or "X, Y, Z" on this
+    specific endpoint — verified against live label data: 'EMPAGLIFLOZIN AND
+    METFORMIN HYDROCHLORIDE', 'ABACAVIR SULFATE, DOLUTEGRAVIR SODIUM,
+    LAMIVUDINE'. A single-ingredient name never contains either separator here.
+
+    ";" is included defensively rather than from a reproduced failure on this
+    endpoint: FDA is not internally consistent about the separator across its
+    own datasets — the Orange Book writes "EMPAGLIFLOZIN; METFORMIN
+    HYDROCHLORIDE" for the same combination this endpoint writes with "AND".
+    Checking for it costs nothing (no real drug name contains a semicolon) and
+    closes the gap before it produces a live misattribution rather than after.
     """
     text = (name or "").upper()
-    return " AND " in text or "," in text
+    return " AND " in text or "," in text or ";" in text
 
 
 async def _fetch_label(client: httpx.AsyncClient, molecule: str) -> Optional[Dict[str, Any]]:

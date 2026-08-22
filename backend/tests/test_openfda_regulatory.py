@@ -97,6 +97,10 @@ def test_is_combination_generic_name():
     assert R._is_combination_generic_name("EMPAGLIFLOZIN, LINAGLIPTIN, METFORMIN HYDROCHLORIDE")
     assert not R._is_combination_generic_name("EMPAGLIFLOZIN")
     assert not R._is_combination_generic_name("ROSUVASTATIN CALCIUM")
+    # Defensive: FDA's Orange Book uses ";" for the same combinations this
+    # endpoint writes with "AND" — not reproduced on this endpoint, but the
+    # underlying data source is demonstrably inconsistent about it elsewhere.
+    assert R._is_combination_generic_name("EMPAGLIFLOZIN; METFORMIN HYDROCHLORIDE")
 
 
 def test_fetch_label_skips_combination_labels_ranked_first_by_recency():
