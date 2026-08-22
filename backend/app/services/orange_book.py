@@ -108,8 +108,117 @@ def _rows(archive: zipfile.ZipFile, filename: str) -> List[dict]:
     return list(csv.DictReader(io.StringIO(raw), delimiter="~"))
 
 
+def _index_from_tables() -> Optional[Dict[str, object]]:
+    """Build the index from the persisted tables instead of re-parsing the zip.
+
+    `orange_book_ingest` loads the same three files into
+    orange_book_products/patents/exclusivity. Reading them here means one
+    source of truth rather than two code paths over one file, removes the
+    per-worker re-parse, and drops the runtime dependency on the zip being
+    present on disk.
+
+    Returns None — not an empty index — when the tables are absent or empty, so
+    the caller falls back to the archive. A fresh deployment has the code but
+    not yet the rows, and silently reporting "no patents" there would read as
+    "off patent".
+
+    Row dicts use the FDA column names the archive produced, because
+    `products_for`/`patents_for` and Module 11 read those keys directly.
+    """
+    try:
+        from ..db.database import SessionLocal
+        from ..db.orange_book_models import (
+            OrangeBookExclusivityORM,
+            OrangeBookPatentORM,
+            OrangeBookProductORM,
+        )
+    except Exception:  # noqa: BLE001 - models unavailable, use the archive
+        return None
+
+    session = SessionLocal()
+    try:
+        products = session.query(OrangeBookProductORM).all()
+        if not products:
+            return None
+        patents = session.query(OrangeBookPatentORM).all()
+        exclusivity = session.query(OrangeBookExclusivityORM).all()
+    except Exception:  # noqa: BLE001 - table missing on an un-migrated database
+        logger.debug("Orange Book tables unavailable; falling back to archive", exc_info=True)
+        return None
+    finally:
+        session.close()
+
+    products_by_ingredient: Dict[str, List[dict]] = {}
+    for row in products:
+        record = {
+            "Ingredient": row.ingredient or "",
+            "DF;Route": row.dosage_form_route or "",
+            "Trade_Name": row.trade_name or "",
+            "Applicant": row.applicant or "",
+            "Applicant_Full_Name": row.applicant_full_name or "",
+            "Strength": row.strength or "",
+            "Appl_Type": row.appl_type or "",
+            "Appl_No": row.appl_no or "",
+            "Product_No": row.product_no or "",
+            "TE_Code": row.te_code or "",
+            "Approval_Date": row.approval_date or "",
+            "RLD": row.rld or "",
+            "RS": row.rs or "",
+            "Type": row.marketing_type or "",
+        }
+        for ingredient in (row.ingredient or "").split(";"):
+            key = ingredient.strip().lower()
+            if key:
+                products_by_ingredient.setdefault(key, []).append(record)
+
+    patents_by_app: Dict[str, List[dict]] = {}
+    for row in patents:
+        patents_by_app.setdefault((row.appl_no or "").strip(), []).append({
+            "Appl_Type": row.appl_type or "",
+            "Appl_No": row.appl_no or "",
+            "Product_No": row.product_no or "",
+            "Patent_No": row.patent_no or "",
+            "Patent_Expire_Date_Text": row.patent_expire_date or "",
+            "Drug_Substance_Flag": row.drug_substance_flag or "",
+            "Drug_Product_Flag": row.drug_product_flag or "",
+            "Patent_Use_Code": row.patent_use_code or "",
+            "Delist_Flag": row.delist_flag or "",
+            "Submission_Date": row.submission_date or "",
+        })
+
+    exclusivity_by_app: Dict[str, List[dict]] = {}
+    for row in exclusivity:
+        exclusivity_by_app.setdefault((row.appl_no or "").strip(), []).append({
+            "Appl_Type": row.appl_type or "",
+            "Appl_No": row.appl_no or "",
+            "Product_No": row.product_no or "",
+            "Exclusivity_Code": row.exclusivity_code or "",
+            "Exclusivity_Date": row.exclusivity_date or "",
+        })
+
+    logger.info(
+        "Orange Book indexed from tables: %d ingredients, %d products, %d patent listings",
+        len(products_by_ingredient), len(products), len(patents),
+    )
+    return {
+        "products_by_ingredient": products_by_ingredient,
+        "patents": patents_by_app,
+        "exclusivity": exclusivity_by_app,
+        "available": True,
+        "source": "database",
+    }
+
+
 def _build_index() -> Dict[str, object]:
-    """Parse the archive into lookup tables keyed for ingredient search."""
+    """Parse the archive into lookup tables keyed for ingredient search.
+
+    Prefers the persisted tables; falls back to the zip when they are empty,
+    which is the state of a freshly deployed database before the loader runs.
+    """
+    from_tables = _index_from_tables()
+    if from_tables is not None:
+        return from_tables
+
     payload = _load_archive()
     if not payload:
         return {"products_by_ingredient": {}, "patents": {}, "exclusivity": {}, "available": False}
@@ -143,6 +252,7 @@ def _build_index() -> Dict[str, object]:
         "patents": patents_by_app,
         "exclusivity": exclusivity_by_app,
         "available": True,
+        "source": "archive",
     }
 
 
