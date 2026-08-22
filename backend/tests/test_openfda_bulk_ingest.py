@@ -280,3 +280,60 @@ def test_unreachable_index_raises_bulk_unavailable(monkeypatch):
     monkeypatch.setattr(bulk.urllib.request, "urlopen", boom)
     with pytest.raises(bulk.BulkUnavailable):
         bulk.list_partitions("ndc")
+
+
+# --------------------------------------------------------------------------
+# SPL name derivation (recovering labels with no openfda block)
+# --------------------------------------------------------------------------
+
+@pytest.mark.parametrize("element,brand,generic", [
+    # Generic repeated immediately, no proprietary name.
+    ("Ofloxacin Ofloxacin OFLOXACIN OFLOXACIN Sodium Chloride", None, "Ofloxacin"),
+    # Case differs between the two writings.
+    ("GABAPENTIN gabapentin GABAPENTIN GABAPENTIN MANNITOL", None, "GABAPENTIN"),
+    # Proprietary name then a repeated two-token generic.
+    ("Plavix clopidogrel bisulfate clopidogrel bisulfate clopidogrel castor oil",
+     "Plavix", "clopidogrel bisulfate"),
+    ("Hand Sanitizer Alcohol ALCOHOL ALCOHOL water", "Hand Sanitizer", "Alcohol"),
+])
+def test_derive_names_from_spl_resolves_known_layouts(element, brand, generic):
+    assert bulk.derive_names_from_spl(element) == (brand, generic)
+
+
+@pytest.mark.parametrize("element", [
+    "",
+    None,
+    "Singleton",
+    # Multi-ingredient combination: no run repeats, so no name is established.
+    "Polymyxin B Sulfate and Trimethoprim Polymyxin B Sulfate and Trimethoprim Sulfate POLYMYXIN",
+    # Generic written only once.
+    "OxyContin oxycodone hydrochloride BUTYLATED HYDROXYTOLUENE HYPROMELLOSES",
+])
+def test_derive_names_declines_rather_than_guessing(element):
+    """A wrong generic name is worse than an absent one - see the docstring."""
+    assert bulk.derive_names_from_spl(element) == (None, None)
+
+
+def test_label_without_openfda_is_recovered_and_marked_derived():
+    row = {
+        "id": "spl-1",
+        "spl_product_data_elements": ["Lorazepam Lorazepam LORAZEPAM LACTOSE"],
+        "adverse_reactions": ["Sedation, dizziness."],
+        "contraindications": ["Acute narrow-angle glaucoma."],
+        "openfda": {},
+    }
+    record = bulk.label_to_record(row, "2026-08-21")
+    assert record is not None
+    assert record.generic_name == "Lorazepam"
+    assert "Sedation" in record.adverse_effects
+    # Identity was parsed, not asserted by the FDA - provenance must say so.
+    assert record.attribution.confidence == "derived"
+
+
+def test_annotated_label_stays_reported_not_derived():
+    assert bulk.label_to_record(LABEL_ROW, None).attribution.confidence == "reported"
+
+
+def test_unparseable_label_is_still_dropped():
+    row = {"id": "x", "openfda": {}, "spl_product_data_elements": ["OxyContin oxycodone hydrochloride BUTYLATED"]}
+    assert bulk.label_to_record(row, None) is None
