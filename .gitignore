@@ -5,6 +5,7 @@ __pycache__/
 *.pyd
 *.sqlite3
 .venv/
+.venv_py39_backup/
 venv/
 .pytest_cache/
 

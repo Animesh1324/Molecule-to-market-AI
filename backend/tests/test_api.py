@@ -23,7 +23,7 @@ def test_root_endpoint():
     assert response.status_code == 200
     data = response.json()
     assert data["status"] == "Operational"
-    assert data["modules_active"] == 15
+    assert data["modules_active"] == 16
 
 def test_projects_list():
     response = client.get("/api/projects")
