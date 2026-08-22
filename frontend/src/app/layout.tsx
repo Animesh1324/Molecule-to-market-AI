@@ -53,8 +53,16 @@ export default function RootLayout({
               <div>
                 Built for Brand Managers, Medical Affairs &amp; Launch Teams | Review-Required Draft Outputs
               </div>
-              <div className="text-slate-400 dark:text-slate-600">
-                Developed by Animesh Mishra
+              <div className="text-slate-400 dark:text-slate-600 flex items-center gap-1.5 flex-wrap justify-center sm:justify-end">
+                <span>Developed by Animesh Mishra</span>
+                <span>·</span>
+                <a href="mailto:animesh.pm17@iihmr.in" className="hover:text-slate-600 dark:hover:text-slate-400 underline underline-offset-2">
+                  animesh.pm17@iihmr.in
+                </a>
+                <span>·</span>
+                <a href="https://www.linkedin.com/in/animeshmishra-pm17" target="_blank" rel="noreferrer" className="hover:text-slate-600 dark:hover:text-slate-400 underline underline-offset-2">
+                  LinkedIn
+                </a>
               </div>
             </div>
           </footer>

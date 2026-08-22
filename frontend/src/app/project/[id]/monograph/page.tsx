@@ -87,7 +87,7 @@ export default function MonographPrintPage() {
 
   if (loading || !project || !molecule) {
     return (
-      <div className="min-h-screen bg-slate-50 dark:bg-slate-950 flex items-center justify-center text-slate-500 dark:text-slate-500 dark:text-slate-400 font-mono text-sm">
+      <div className="min-h-screen bg-slate-50 dark:bg-slate-950 flex items-center justify-center text-slate-500 dark:text-slate-400 font-mono text-sm">
         Compiling print-ready scientific monograph...
       </div>
     );
@@ -108,7 +108,7 @@ export default function MonographPrintPage() {
             <span>Back to Workspace</span>
           </Link>
           <div className="flex items-center space-x-3">
-            <span className="text-xs text-slate-500 dark:text-slate-500 dark:text-slate-400 font-mono">Print-Ready Monograph & Dossier</span>
+            <span className="text-xs text-slate-500 dark:text-slate-400 font-mono">Print-Ready Monograph & Dossier</span>
             <button
               onClick={handlePrint}
               className="flex items-center space-x-1.5 px-4 py-2 rounded-xl bg-brand-600 hover:bg-brand-500 text-slate-900 dark:text-white text-xs font-semibold shadow-md transition"

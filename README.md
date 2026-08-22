@@ -335,5 +335,5 @@ The repo includes GitHub Actions workflows under `.github/workflows` for CI and 
 
 ## Developer
 
-Built by [Animesh Mishra](https://github.com/Animesh1324).
+Built by [Animesh Mishra](https://github.com/Animesh1324) — [animesh.pm17@iihmr.in](mailto:animesh.pm17@iihmr.in) — [LinkedIn](https://www.linkedin.com/in/animeshmishra-pm17).
 

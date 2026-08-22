@@ -38,7 +38,7 @@ export default function PositioningMatrix({ competitors, targetMolecule, targetB
       <div className="flex items-center justify-between mb-4">
         <div>
           <h3 className="text-lg font-bold text-slate-800 dark:text-slate-100">Perceptual Competitive Positioning Quadrant</h3>
-          <p className="text-xs text-slate-500 dark:text-slate-500 dark:text-slate-400">Hard Clinical Efficacy (X-Axis) vs. Safety, Tolerability & Convenience (Y-Axis)</p>
+          <p className="text-xs text-slate-500 dark:text-slate-400">Hard Clinical Efficacy (X-Axis) vs. Safety, Tolerability & Convenience (Y-Axis)</p>
         </div>
         <div className="flex items-center space-x-2 text-xs">
           <span className="flex items-center space-x-1 text-emerald-700 dark:text-emerald-400 font-semibold">
@@ -93,7 +93,7 @@ export default function PositioningMatrix({ competitors, targetMolecule, targetB
         ))}
       </div>
 
-      <div className="flex flex-wrap items-center justify-between text-xs text-slate-500 dark:text-slate-500 dark:text-slate-400 pt-2">
+      <div className="flex flex-wrap items-center justify-between text-xs text-slate-500 dark:text-slate-400 pt-2">
         <span>← Low Clinical Endpoint Separation</span>
         <span className="font-semibold text-slate-700 dark:text-slate-200">X-Axis: Level-1 Hard Endpoint Efficacy</span>
         <span>Superior Endpoint Separation →</span>

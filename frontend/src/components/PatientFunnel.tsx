@@ -52,7 +52,7 @@ export default function PatientFunnel({ forecast }: PatientFunnelProps) {
               key={idx}
               className={`p-4 rounded-xl border border-slate-200 dark:border-slate-800 bg-gradient-to-b ${step.color} relative overflow-hidden flex flex-col justify-between`}
             >
-              <div className="flex items-center justify-between text-xs text-slate-500 dark:text-slate-500 dark:text-slate-400 mb-2">
+              <div className="flex items-center justify-between text-xs text-slate-500 dark:text-slate-400 mb-2">
                 <span>{step.label}</span>
                 <Icon className={`w-4 h-4 ${step.textColor}`} />
               </div>
@@ -68,17 +68,17 @@ export default function PatientFunnel({ forecast }: PatientFunnelProps) {
 
       <div className="p-4 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 flex flex-wrap items-center justify-between gap-4 text-xs">
         <div>
-          <span className="text-slate-500 dark:text-slate-500 dark:text-slate-400">Total Available Treated Market Size: </span>
+          <span className="text-slate-500 dark:text-slate-400">Total Available Treated Market Size: </span>
           <span className="text-lg font-bold text-emerald-700 dark:text-emerald-400 font-mono ml-2">
             ${(forecast.current_therapy_market_size_usd / 1e6).toFixed(1)} Million USD
           </span>
         </div>
         <div>
-          <span className="text-slate-500 dark:text-slate-500 dark:text-slate-400">Therapy Area CAGR: </span>
+          <span className="text-slate-500 dark:text-slate-400">Therapy Area CAGR: </span>
           <span className="font-semibold text-brand-700 dark:text-brand-300 ml-1">+{forecast.therapy_market_cagr}% / Year</span>
         </div>
         <div>
-          <span className="text-slate-500 dark:text-slate-500 dark:text-slate-400">Net Patient-Year Cost: </span>
+          <span className="text-slate-500 dark:text-slate-400">Net Patient-Year Cost: </span>
           <span className="font-semibold text-slate-700 dark:text-slate-200 ml-1">${forecast.annual_cost_per_patient_usd.toLocaleString()}</span>
         </div>
       </div>

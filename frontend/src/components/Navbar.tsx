@@ -34,10 +34,10 @@ export default function Navbar({ currentProjectId, projectTitle, moleculeName }:
 
           {projectTitle && (
             <div className="hidden lg:flex items-center space-x-2 pl-4 border-l border-slate-200 dark:border-slate-800 text-sm min-w-0">
-              <span className="text-slate-500 dark:text-slate-500 dark:text-slate-400 text-xs uppercase tracking-wider font-mono">Active Initiative:</span>
+              <span className="text-slate-500 dark:text-slate-400 text-xs uppercase tracking-wider font-mono">Active Initiative:</span>
               <span className="font-semibold text-slate-700 dark:text-slate-200 truncate max-w-xs">{projectTitle}</span>
               {moleculeName && (
-                <span className="bg-brand-950 text-brand-700 dark:text-brand-300 text-xs px-2.5 py-0.5 rounded-full border border-brand-800 font-mono">
+                <span className="bg-brand-50 dark:bg-brand-950 text-brand-700 dark:text-brand-300 text-xs px-2.5 py-0.5 rounded-full border border-brand-800 font-mono">
                   {moleculeName}
                 </span>
               )}
@@ -51,7 +51,7 @@ export default function Navbar({ currentProjectId, projectTitle, moleculeName }:
             href="/"
             className="flex items-center space-x-1.5 px-2 sm:px-3 py-1.5 rounded-lg text-sm text-slate-600 dark:text-slate-300 hover:text-white hover:bg-slate-800 transition"
           >
-            <FolderKanban className="w-4 h-4 shrink-0 text-slate-500 dark:text-slate-500 dark:text-slate-400" />
+            <FolderKanban className="w-4 h-4 shrink-0 text-slate-500 dark:text-slate-400" />
             <span className="hidden sm:inline whitespace-nowrap">Projects Hub</span>
           </Link>
 

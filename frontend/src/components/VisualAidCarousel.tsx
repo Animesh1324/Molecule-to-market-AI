@@ -38,7 +38,7 @@ export default function VisualAidCarousel({ slides, brandName }: VisualAidCarous
               className={`w-7 h-7 rounded-lg text-xs font-bold transition-all ${
                 activeIdx === idx
                   ? 'bg-brand-600 text-slate-900 dark:text-white shadow-md shadow-brand-500/20'
-                  : 'text-slate-500 dark:text-slate-500 dark:text-slate-400 hover:text-white hover:bg-slate-800'
+                  : 'text-slate-500 dark:text-slate-400 hover:text-white hover:bg-slate-800'
               }`}
             >
               {s.slide_number}
@@ -70,11 +70,11 @@ export default function VisualAidCarousel({ slides, brandName }: VisualAidCarous
               </p>
             </div>
 
-            <div className="bg-brand-950/40 p-3 rounded-lg border border-brand-800/40">
+            <div className="bg-brand-50 dark:bg-brand-950/40 p-3 rounded-lg border border-brand-800/40">
               <div className="text-xs font-semibold text-brand-700 dark:text-brand-300 uppercase tracking-wider mb-1">
                 Data Chart / Graph
               </div>
-              <p className="text-xs text-brand-200/90">
+              <p className="text-xs text-brand-800 dark:text-brand-200/90">
                 {current.clinical_data_chart_description}
               </p>
             </div>
@@ -109,7 +109,7 @@ export default function VisualAidCarousel({ slides, brandName }: VisualAidCarous
 
         {/* Slide Footers: Evidence & Fair Balance */}
         <div className="bg-white dark:bg-slate-900/90 px-6 py-3 border-t border-slate-200 dark:border-slate-800 flex flex-wrap items-center justify-between gap-2 text-xs">
-          <div className="text-slate-500 dark:text-slate-500 dark:text-slate-400">
+          <div className="text-slate-500 dark:text-slate-400">
             <span className="font-semibold text-slate-600 dark:text-slate-300">Reference: </span>
             <span className="font-mono text-teal-700 dark:text-teal-400">{current.evidence_citation}</span>
           </div>
@@ -131,7 +131,7 @@ export default function VisualAidCarousel({ slides, brandName }: VisualAidCarous
           <span>Previous Slide</span>
         </button>
 
-        <span className="text-xs text-slate-500 dark:text-slate-500 dark:text-slate-400 font-mono">
+        <span className="text-xs text-slate-500 dark:text-slate-400 font-mono">
           Slide {activeIdx + 1} of {slides.length}
         </span>
 

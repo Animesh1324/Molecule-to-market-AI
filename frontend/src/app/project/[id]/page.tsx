@@ -275,7 +275,7 @@ export default function ProjectWorkspacePage() {
         <Navbar />
         <div className="flex-1 flex flex-col items-center justify-center p-8 space-y-4">
           <div className="w-12 h-12 rounded-full border-4 border-brand-500 border-t-transparent animate-spin"></div>
-          <p className="text-slate-500 dark:text-slate-500 dark:text-slate-400 font-mono text-sm">Synthesizing scientific and commercial intelligence across 10 modules...</p>
+          <p className="text-slate-500 dark:text-slate-400 font-mono text-sm">Synthesizing scientific and commercial intelligence across 10 modules...</p>
         </div>
       </div>
     );
@@ -291,7 +291,7 @@ export default function ProjectWorkspacePage() {
           </div>
           <div className="space-y-2 max-w-lg">
             <h2 className="text-xl font-bold text-slate-900 dark:text-white">Could not load this brand initiative</h2>
-            <p className="text-slate-500 dark:text-slate-500 dark:text-slate-400 text-sm">
+            <p className="text-slate-500 dark:text-slate-400 text-sm">
               {loadError || 'This project could not be found.'}
             </p>
             <p className="text-slate-500 dark:text-slate-500 font-mono text-xs">
@@ -423,7 +423,7 @@ export default function ProjectWorkspacePage() {
                   className={`flex items-center space-x-2 px-3.5 py-2 rounded-xl text-xs font-semibold transition-all whitespace-nowrap ${
                     isActive
                       ? 'bg-brand-600 text-slate-900 dark:text-white shadow-md shadow-brand-500/20'
-                      : 'text-slate-500 dark:text-slate-500 dark:text-slate-400 hover:text-slate-200 hover:bg-slate-800'
+                      : 'text-slate-500 dark:text-slate-400 hover:text-slate-900 hover:bg-slate-100 dark:hover:text-slate-200 dark:hover:bg-slate-800'
                   }`}
                 >
                   <Icon className={`w-4 h-4 ${isActive ? 'text-slate-900 dark:text-white' : 'text-teal-700 dark:text-teal-400'}`} />
@@ -465,7 +465,7 @@ export default function ProjectWorkspacePage() {
               <div>
                 <span className="text-xs font-mono text-teal-700 dark:text-teal-400 uppercase tracking-wider">Module 1: Chemoinformatics & Pharmacology</span>
                 <h1 className="text-2xl md:text-3xl font-extrabold text-slate-900 dark:text-white mt-0.5">{molecule.generic_name}</h1>
-                <p className="text-xs text-slate-500 dark:text-slate-500 dark:text-slate-400 mt-1">{molecule.chemical_name}</p>
+                <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">{molecule.chemical_name}</p>
               </div>
               <div className="flex items-center space-x-2">
                 <span className="px-3 py-1 rounded-full bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 text-xs font-mono text-slate-600 dark:text-slate-300">
@@ -476,7 +476,7 @@ export default function ProjectWorkspacePage() {
                     href={`https://pubchem.ncbi.nlm.nih.gov/compound/${molecule.pubchem_cid}`}
                     target="_blank"
                     rel="noreferrer"
-                    className="flex items-center space-x-1 px-3 py-1 rounded-full bg-brand-950 border border-brand-800 text-xs font-mono text-brand-700 dark:text-brand-300 hover:text-brand-200"
+                    className="flex items-center space-x-1 px-3 py-1 rounded-full bg-brand-50 dark:bg-brand-950 border border-brand-800 text-xs font-mono text-brand-700 dark:text-brand-300 hover:text-brand-900 dark:hover:text-brand-200"
                   >
                     <span>PubChem CID: {molecule.pubchem_cid}</span>
                     <ExternalLink className="w-3 h-3" />
@@ -564,7 +564,7 @@ export default function ProjectWorkspacePage() {
                 </h3>
 
                 {molecule.black_box_warnings.length > 0 && (
-                  <div className="p-3 rounded-lg bg-rose-950/60 border border-rose-800/80 text-rose-300 text-xs space-y-1">
+                  <div className="p-3 rounded-lg bg-rose-50 dark:bg-rose-950/60 border border-rose-800/80 text-rose-800 dark:text-rose-300 text-xs space-y-1">
                     <div className="font-bold uppercase tracking-wider flex items-center space-x-1">
                       <AlertTriangle className="w-3.5 h-3.5 text-rose-700 dark:text-rose-400" />
                       <span>Black Box Warning</span>
@@ -629,7 +629,7 @@ export default function ProjectWorkspacePage() {
               <div>
                 <span className="text-xs font-mono text-teal-700 dark:text-teal-400 uppercase tracking-wider">Module 2: Literature Ingestion & Evidence Hierarchy</span>
                 <h1 className="text-2xl font-extrabold text-slate-900 dark:text-white mt-0.5">PubMed Clinical Evidence Matrix</h1>
-                <p className="text-xs text-slate-500 dark:text-slate-500 dark:text-slate-400 mt-1">Ranked by evidence strength (Systematic Review &gt; RCT &gt; Observational)</p>
+                <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">Ranked by evidence strength (Systematic Review &gt; RCT &gt; Observational)</p>
               </div>
               {/* Two counts, never merged: what PubMed indexes vs what is loaded. */}
               <div className="flex flex-wrap items-center gap-2 text-xs">
@@ -683,14 +683,14 @@ export default function ProjectWorkspacePage() {
                 <div key={idx} className="p-6 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 hover:border-slate-700 transition space-y-4">
                   <div className="flex flex-wrap items-center justify-between gap-2">
                     <div className="flex items-center space-x-2">
-                      <span className="px-2.5 py-0.5 rounded-full bg-brand-950 text-brand-700 dark:text-brand-300 border border-brand-800 text-xs font-semibold">
+                      <span className="px-2.5 py-0.5 rounded-full bg-brand-50 dark:bg-brand-950 text-brand-700 dark:text-brand-300 border border-brand-800 text-xs font-semibold">
                         {paper.study_type}
                       </span>
-                      <span className="px-2.5 py-0.5 rounded-full bg-emerald-950 text-emerald-700 dark:text-emerald-300 border border-emerald-800 text-xs font-semibold">
+                      <span className="px-2.5 py-0.5 rounded-full bg-emerald-50 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-300 border border-emerald-800 text-xs font-semibold">
                         {paper.evidence_level}
                       </span>
                       {paper.sample_size && (
-                        <span className="text-xs font-mono text-slate-500 dark:text-slate-500 dark:text-slate-400">
+                        <span className="text-xs font-mono text-slate-500 dark:text-slate-400">
                           N = {paper.sample_size.toLocaleString()} Patients
                         </span>
                       )}
@@ -712,7 +712,7 @@ export default function ProjectWorkspacePage() {
                     {paper.title}
                   </h3>
 
-                  <div className="text-xs text-slate-500 dark:text-slate-500 dark:text-slate-400">
+                  <div className="text-xs text-slate-500 dark:text-slate-400">
                     <span className="font-semibold text-slate-600 dark:text-slate-300">{paper.journal}</span>
                     {' '}({paper.publication_year ? paper.publication_year : 'n.d.'})
                     {paper.authors.length > 0 && (
@@ -757,7 +757,7 @@ export default function ProjectWorkspacePage() {
                   )}
 
                   <div className="text-xs text-slate-600 dark:text-slate-300 leading-relaxed">
-                    <strong className="text-slate-500 dark:text-slate-500 dark:text-slate-400">Claim Support Value:</strong> {paper.claim_support_potential}
+                    <strong className="text-slate-500 dark:text-slate-400">Claim Support Value:</strong> {paper.claim_support_potential}
                   </div>
                 </div>
               ))}
@@ -798,12 +798,12 @@ export default function ProjectWorkspacePage() {
                   <div key={cIdx} className="py-4 space-y-2">
                     <div className="flex items-center justify-between">
                       <span className="text-xs font-mono text-brand-700 dark:text-brand-400 font-semibold">{claim.category} Claim</span>
-                      <span className="px-2 py-0.5 rounded bg-emerald-950 text-emerald-700 dark:text-emerald-400 text-[10px] font-semibold border border-emerald-800">
+                      <span className="px-2 py-0.5 rounded bg-emerald-50 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-400 text-[10px] font-semibold border border-emerald-800">
                         {claim.label_status}
                       </span>
                     </div>
                     <p className="text-sm font-semibold text-slate-800 dark:text-slate-100">"{claim.claim_text}"</p>
-                    <div className="text-xs text-slate-500 dark:text-slate-500 dark:text-slate-400 flex items-center space-x-2">
+                    <div className="text-xs text-slate-500 dark:text-slate-400 flex items-center space-x-2">
                       <ShieldCheck className="w-3.5 h-3.5 text-emerald-700 dark:text-emerald-400" />
                       <span>Evidence candidates: {claim.supported_by_papers.map(p => p.journal).join(', ')}</span>
                     </div>
@@ -823,7 +823,7 @@ export default function ProjectWorkspacePage() {
               <div>
                 <span className="text-xs font-mono text-teal-700 dark:text-teal-400 uppercase tracking-wider">Module 3: ClinicalTrials.gov Pipeline Radar</span>
                 <h1 className="text-2xl font-extrabold text-slate-900 dark:text-white mt-0.5">Clinical Trial Landscape</h1>
-                <p className="text-xs text-slate-500 dark:text-slate-500 dark:text-slate-400 mt-1">Tracking ongoing Phase 1-4 studies, endpoints, and competitor pipeline threats</p>
+                <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">Tracking ongoing Phase 1-4 studies, endpoints, and competitor pipeline threats</p>
               </div>
               <div className="flex items-center space-x-2">
                 <span className="px-3 py-1 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-xs font-mono text-slate-600 dark:text-slate-300">
@@ -853,7 +853,7 @@ export default function ProjectWorkspacePage() {
             {/* Landmark Trials List */}
             <div className="space-y-4">
               {trials.landmark_trials.length === 0 && (
-                <div className="p-6 rounded-2xl bg-amber-950/30 border border-amber-800 text-amber-200 text-sm">
+                <div className="p-6 rounded-2xl bg-amber-50 dark:bg-amber-950/30 border border-amber-800 text-amber-900 dark:text-amber-200 text-sm">
                   No ClinicalTrials.gov records were found. Trial claims and competitor pipeline conclusions should remain blank.
                 </div>
               )}
@@ -861,14 +861,14 @@ export default function ProjectWorkspacePage() {
                 <div key={tIdx} className="p-6 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 space-y-4">
                   <div className="flex flex-wrap items-center justify-between gap-2">
                     <div className="flex items-center space-x-2">
-                      <span className="px-2.5 py-0.5 rounded-full bg-emerald-950 text-emerald-700 dark:text-emerald-300 border border-emerald-800 text-xs font-semibold">
+                      <span className="px-2.5 py-0.5 rounded-full bg-emerald-50 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-300 border border-emerald-800 text-xs font-semibold">
                         {trial.phase}
                       </span>
                       <span className="px-2.5 py-0.5 rounded-full bg-slate-200 dark:bg-slate-800 text-slate-600 dark:text-slate-300 text-xs font-semibold">
                         {trial.status}
                       </span>
                       {trial.acronym && (
-                        <span className="px-2 py-0.5 rounded bg-brand-950 text-brand-700 dark:text-brand-300 font-mono text-xs font-bold border border-brand-800">
+                        <span className="px-2 py-0.5 rounded bg-brand-50 dark:bg-brand-950 text-brand-700 dark:text-brand-300 font-mono text-xs font-bold border border-brand-800">
                           {trial.acronym}
                         </span>
                       )}
@@ -888,7 +888,7 @@ export default function ProjectWorkspacePage() {
                     {trial.title}
                   </h3>
 
-                  <div className="text-xs text-slate-500 dark:text-slate-500 dark:text-slate-400 flex flex-wrap items-center gap-4">
+                  <div className="text-xs text-slate-500 dark:text-slate-400 flex flex-wrap items-center gap-4">
                     <span>Sponsor: <strong className="text-slate-600 dark:text-slate-300">{trial.sponsor}</strong></span>
                     <span>Enrollment: <strong className="text-slate-600 dark:text-slate-300">{trial.enrollment?.toLocaleString() || 'N/A'} Patients</strong></span>
                     <span>Indication: <strong className="text-slate-600 dark:text-slate-300">{trial.indication}</strong></span>
@@ -901,7 +901,7 @@ export default function ProjectWorkspacePage() {
                     </div>
                   )}
 
-                  <div className="pt-2 border-t border-slate-200 dark:border-slate-800/80 text-xs text-slate-500 dark:text-slate-500 dark:text-slate-400">
+                  <div className="pt-2 border-t border-slate-200 dark:border-slate-800/80 text-xs text-slate-500 dark:text-slate-400">
                     <strong className="text-slate-500 dark:text-slate-500">Primary Endpoints: </strong>
                     {trial.primary_endpoints.join('; ')}
                   </div>
@@ -920,7 +920,7 @@ export default function ProjectWorkspacePage() {
               <div>
                 <span className="text-xs font-mono text-teal-700 dark:text-teal-400 uppercase tracking-wider">Module 4: Global Regulatory & Label Parsers</span>
                 <h1 className="text-2xl font-extrabold text-slate-900 dark:text-white mt-0.5">Regulatory Intelligence Dossier</h1>
-                <p className="text-xs text-slate-500 dark:text-slate-500 dark:text-slate-400 mt-1">Cross-referencing US FDA (DailyMed), CDSCO (India), and EMA (European Union)</p>
+                <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">Cross-referencing US FDA (DailyMed), CDSCO (India), and EMA (European Union)</p>
               </div>
               <div className="flex items-center space-x-2">
                 <span className="px-3 py-1 rounded-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-xs text-slate-600 dark:text-slate-300 font-mono">
@@ -1078,7 +1078,7 @@ export default function ProjectWorkspacePage() {
               <div>
                 <span className="text-xs font-mono text-teal-700 dark:text-teal-400 uppercase tracking-wider">Module 5: Trademark Clearance & Pharma Brand Naming</span>
                 <h1 className="text-2xl font-extrabold text-slate-900 dark:text-white mt-0.5">Brand Naming & Phonetic Conflict Analysis</h1>
-                <p className="text-xs text-slate-500 dark:text-slate-500 dark:text-slate-400 mt-1">Phonetic Soundex collision analysis and Class 5 pharmaceutical trademark search links</p>
+                <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">Phonetic Soundex collision analysis and Class 5 pharmaceutical trademark search links</p>
               </div>
             </div>
 
@@ -1091,8 +1091,8 @@ export default function ProjectWorkspacePage() {
                       <h3 className="text-xl font-bold text-slate-900 dark:text-white tracking-tight">{sug.name}</h3>
                       <span className={`px-2.5 py-0.5 rounded-full text-xs font-semibold border ${
                         sug.collision_risk.includes('Low')
-                          ? 'bg-emerald-950 text-emerald-700 dark:text-emerald-300 border-emerald-800'
-                          : 'bg-amber-950 text-amber-700 dark:text-amber-300 border-amber-800'
+                          ? 'bg-emerald-50 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-300 border-emerald-800'
+                          : 'bg-amber-50 dark:bg-amber-950 text-amber-700 dark:text-amber-300 border-amber-800'
                       }`}>
                         {sug.collision_risk}
                       </span>
@@ -1104,7 +1104,7 @@ export default function ProjectWorkspacePage() {
                       {sug.rationale}
                     </p>
 
-                    <div className="p-2.5 rounded-lg bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-[11px] text-slate-500 dark:text-slate-500 dark:text-slate-400 space-y-0.5">
+                    <div className="p-2.5 rounded-lg bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-[11px] text-slate-500 dark:text-slate-400 space-y-0.5">
                       <div>Stem Origin: <strong className="text-slate-700 dark:text-slate-200">{sug.stem_origin}</strong></div>
                       <div>Soundex Code: <strong className="text-slate-700 dark:text-slate-200 font-mono">{sug.phonetic_soundex}</strong></div>
                     </div>
@@ -1124,7 +1124,7 @@ export default function ProjectWorkspacePage() {
                       href={sug.wipo_search_link}
                       target="_blank"
                       rel="noreferrer"
-                      className="text-slate-500 dark:text-slate-500 dark:text-slate-400 hover:text-slate-200 flex items-center space-x-1"
+                      className="text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200 flex items-center space-x-1"
                     >
                       <span>WIPO DB</span>
                       <ExternalLink className="w-3 h-3" />
@@ -1144,7 +1144,7 @@ export default function ProjectWorkspacePage() {
                   <div key={pIdx} className="p-4 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 space-y-1.5">
                     <div className="flex items-center justify-between">
                       <span className="font-bold text-slate-900 dark:text-white text-sm">{pat.brand_name}</span>
-                      <span className="text-slate-500 dark:text-slate-500 dark:text-slate-400">{pat.company}</span>
+                      <span className="text-slate-500 dark:text-slate-400">{pat.company}</span>
                     </div>
                     <div className="text-slate-600 dark:text-slate-300">Analysis: {pat.prefix_suffix_analysis}</div>
                     <div className="text-slate-500 dark:text-slate-500">Cadence: {pat.cadence} ({pat.syllable_count} Syllables)</div>
@@ -1164,7 +1164,7 @@ export default function ProjectWorkspacePage() {
               <div>
                 <span className="text-xs font-mono text-teal-700 dark:text-teal-400 uppercase tracking-wider">Module 6: Competitive Landscape & Positioning</span>
                 <h1 className="text-2xl font-extrabold text-slate-900 dark:text-white mt-0.5">Competitor Battleground & SWOT Matrix</h1>
-                <p className="text-xs text-slate-500 dark:text-slate-500 dark:text-slate-400 mt-1">Multi-dimensional head-to-head matrix and 2x2 positioning quadrant</p>
+                <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">Multi-dimensional head-to-head matrix and 2x2 positioning quadrant</p>
               </div>
             </div>
 
@@ -1205,12 +1205,12 @@ export default function ProjectWorkspacePage() {
                   <div className="space-y-3">
                     <div className="flex items-center justify-between">
                       <h3 className="text-lg font-bold text-slate-900 dark:text-white">{comp.brand_name}</h3>
-                      <span className="text-xs font-mono text-brand-700 dark:text-brand-400 bg-brand-950 px-2 py-0.5 rounded border border-brand-800">
+                      <span className="text-xs font-mono text-brand-700 dark:text-brand-400 bg-brand-50 dark:bg-brand-950 px-2 py-0.5 rounded border border-brand-800">
                         {comp.market_share_percentage}% Share
                       </span>
                     </div>
 
-                    <div className="text-xs text-slate-500 dark:text-slate-500 dark:text-slate-400">
+                    <div className="text-xs text-slate-500 dark:text-slate-400">
                       <div>Company: <strong className="text-slate-700 dark:text-slate-200">{comp.company}</strong></div>
                       <div>Molecule: <strong className="text-slate-700 dark:text-slate-200">{comp.molecule}</strong></div>
                       {comp.price_per_month_usd && (
@@ -1257,7 +1257,7 @@ export default function ProjectWorkspacePage() {
                 Comprehensive SWOT Analysis for {brandDisplayName}
               </h3>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
-                <div className="p-4 rounded-xl bg-emerald-950/20 border border-emerald-800/40 space-y-2">
+                <div className="p-4 rounded-xl bg-emerald-50 dark:bg-emerald-950/20 border border-emerald-800/40 space-y-2">
                   <span className="font-bold text-emerald-700 dark:text-emerald-400 text-sm block">Strengths</span>
                   <ul className="list-disc list-inside text-slate-700 dark:text-slate-200 space-y-1">
                     {competitors.swot_analysis.strengths.map((s, idx) => (
@@ -1266,7 +1266,7 @@ export default function ProjectWorkspacePage() {
                   </ul>
                 </div>
 
-                <div className="p-4 rounded-xl bg-rose-950/20 border border-rose-800/40 space-y-2">
+                <div className="p-4 rounded-xl bg-rose-50 dark:bg-rose-950/20 border border-rose-800/40 space-y-2">
                   <span className="font-bold text-rose-700 dark:text-rose-400 text-sm block">Weaknesses</span>
                   <ul className="list-disc list-inside text-slate-700 dark:text-slate-200 space-y-1">
                     {competitors.swot_analysis.weaknesses.map((w, idx) => (
@@ -1275,7 +1275,7 @@ export default function ProjectWorkspacePage() {
                   </ul>
                 </div>
 
-                <div className="p-4 rounded-xl bg-blue-950/20 border border-blue-800/40 space-y-2">
+                <div className="p-4 rounded-xl bg-blue-50 dark:bg-blue-950/20 border border-blue-800/40 space-y-2">
                   <span className="font-bold text-blue-700 dark:text-blue-400 text-sm block">Opportunities</span>
                   <ul className="list-disc list-inside text-slate-700 dark:text-slate-200 space-y-1">
                     {competitors.swot_analysis.opportunities.map((o, idx) => (
@@ -1284,7 +1284,7 @@ export default function ProjectWorkspacePage() {
                   </ul>
                 </div>
 
-                <div className="p-4 rounded-xl bg-amber-950/20 border border-amber-800/40 space-y-2">
+                <div className="p-4 rounded-xl bg-amber-50 dark:bg-amber-950/20 border border-amber-800/40 space-y-2">
                   <span className="font-bold text-amber-700 dark:text-amber-400 text-sm block">Threats</span>
                   <ul className="list-disc list-inside text-slate-700 dark:text-slate-200 space-y-1">
                     {competitors.swot_analysis.threats.map((t, idx) => (
@@ -1306,7 +1306,7 @@ export default function ProjectWorkspacePage() {
               <div>
                 <span className="text-xs font-mono text-teal-700 dark:text-teal-400 uppercase tracking-wider">Module 7: Epidemiological Sizing & Scenario Forecaster</span>
                 <h1 className="text-2xl font-extrabold text-slate-900 dark:text-white mt-0.5">Market Sizing & 5-Year Revenue Forecast</h1>
-                <p className="text-xs text-slate-500 dark:text-slate-500 dark:text-slate-400 mt-1">Adjust epidemiological funnel variables and simulate revenue projections</p>
+                <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">Adjust epidemiological funnel variables and simulate revenue projections</p>
               </div>
             </div>
 
@@ -1415,7 +1415,7 @@ export default function ProjectWorkspacePage() {
               </h3>
               <div className="overflow-x-auto">
                 <table className="w-full text-xs text-left">
-                  <thead className="bg-slate-50 dark:bg-slate-950 text-slate-500 dark:text-slate-500 dark:text-slate-400 font-mono border-b border-slate-200 dark:border-slate-800">
+                  <thead className="bg-slate-50 dark:bg-slate-950 text-slate-500 dark:text-slate-400 font-mono border-b border-slate-200 dark:border-slate-800">
                     <tr>
                       <th className="p-3">Specialty Segment</th>
                       <th className="p-3">Prescriber Pool Size</th>
@@ -1432,7 +1432,7 @@ export default function ProjectWorkspacePage() {
                         <td className="p-3">{doc.tier}</td>
                         <td className="p-3">
                           <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${
-                            doc.priority_level === 'Very High' ? 'bg-rose-950 text-rose-300 border border-rose-800' : 'bg-brand-950 text-brand-700 dark:text-brand-300 border border-brand-800'
+                            doc.priority_level === 'Very High' ? 'bg-rose-50 dark:bg-rose-950 text-rose-800 dark:text-rose-300 border border-rose-800' : 'bg-brand-50 dark:bg-brand-950 text-brand-700 dark:text-brand-300 border border-brand-800'
                           }`}>
                             {doc.priority_level}
                           </span>
@@ -1456,7 +1456,7 @@ export default function ProjectWorkspacePage() {
               <div>
                 <span className="text-xs font-mono text-teal-700 dark:text-teal-400 uppercase tracking-wider">Module 8: The 12-Section Strategic Brand Architecture</span>
                 <h1 className="text-2xl font-extrabold text-slate-900 dark:text-white mt-0.5">Pharma Brand Strategy Plan</h1>
-                <p className="text-xs text-slate-500 dark:text-slate-500 dark:text-slate-400 mt-1">Complete commercial and medical plan for {brandDisplayName} ({project.target_molecule_name})</p>
+                <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">Complete commercial and medical plan for {brandDisplayName} ({project.target_molecule_name})</p>
               </div>
               <div className="flex items-center space-x-2">
                 <a
@@ -1493,7 +1493,7 @@ export default function ProjectWorkspacePage() {
                 {brandPlan.ai_review_flags && brandPlan.ai_review_flags.length > 0 && (
                   <ul className="space-y-1 pl-6">
                     {brandPlan.ai_review_flags.map((flag, fIdx) => (
-                      <li key={fIdx} className="text-[11px] text-slate-500 dark:text-slate-500 dark:text-slate-400 leading-relaxed list-disc">
+                      <li key={fIdx} className="text-[11px] text-slate-500 dark:text-slate-400 leading-relaxed list-disc">
                         {flag}
                       </li>
                     ))}
@@ -1524,7 +1524,7 @@ export default function ProjectWorkspacePage() {
                 <div key={sIdx} className="p-6 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 space-y-4">
                   <div className="flex items-center justify-between border-b border-slate-200 dark:border-slate-800 pb-3">
                     <h3 className="text-base font-bold text-slate-900 dark:text-white">{sec.section_title}</h3>
-                    <span className="px-2.5 py-0.5 rounded-full bg-slate-50 dark:bg-slate-950 text-slate-500 dark:text-slate-500 dark:text-slate-400 border border-slate-200 dark:border-slate-800 text-[10px] font-mono">
+                    <span className="px-2.5 py-0.5 rounded-full bg-slate-50 dark:bg-slate-950 text-slate-500 dark:text-slate-400 border border-slate-200 dark:border-slate-800 text-[10px] font-mono">
                       {sec.section_category}
                     </span>
                   </div>
@@ -1558,7 +1558,7 @@ export default function ProjectWorkspacePage() {
               <div>
                 <span className="text-xs font-mono text-teal-700 dark:text-teal-400 uppercase tracking-wider">Module 9: Commercial & Detailing Collateral</span>
                 <h1 className="text-2xl font-extrabold text-slate-900 dark:text-white mt-0.5">Commercial Asset & Visual Aid Studio</h1>
-                <p className="text-xs text-slate-500 dark:text-slate-500 dark:text-slate-400 mt-1">Interactive 6-slide doctor detailer storyboard, LBL brief, and MR objection simulator</p>
+                <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">Interactive 6-slide doctor detailer storyboard, LBL brief, and MR objection simulator</p>
               </div>
             </div>
 
@@ -1623,7 +1623,7 @@ export default function ProjectWorkspacePage() {
               <div>
                 <span className="text-xs font-mono text-teal-700 dark:text-teal-400 uppercase tracking-wider">Module 10: Multi-Format Export Center & MLR Governance</span>
                 <h1 className="text-2xl font-extrabold text-slate-900 dark:text-white mt-0.5">Report Center & Compliance Signoff</h1>
-                <p className="text-xs text-slate-500 dark:text-slate-500 dark:text-slate-400 mt-1">Export high-fidelity Word, PowerPoint, and Excel deliverables and review timestamped audit logs</p>
+                <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">Export high-fidelity Word, PowerPoint, and Excel deliverables and review timestamped audit logs</p>
               </div>
             </div>
 
@@ -1632,11 +1632,11 @@ export default function ProjectWorkspacePage() {
               {/* Word Document */}
               <div className="p-6 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 space-y-4 flex flex-col justify-between">
                 <div className="space-y-2">
-                  <div className="w-10 h-10 rounded-xl bg-blue-950 border border-blue-800 flex items-center justify-center text-blue-700 dark:text-blue-400">
+                  <div className="w-10 h-10 rounded-xl bg-blue-50 dark:bg-blue-950 border border-blue-800 flex items-center justify-center text-blue-700 dark:text-blue-400">
                     <FileText className="w-5 h-5" />
                   </div>
                   <h3 className="text-base font-bold text-slate-900 dark:text-white">Complete Brand Plan (.docx)</h3>
-                  <p className="text-xs text-slate-500 dark:text-slate-500 dark:text-slate-400">
+                  <p className="text-xs text-slate-500 dark:text-slate-400">
                     Draft Word document covering all 12 strategic sections, tables, and review-required appendices.
                   </p>
                 </div>
@@ -1652,11 +1652,11 @@ export default function ProjectWorkspacePage() {
               {/* PowerPoint Pitch Deck */}
               <div className="p-6 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 space-y-4 flex flex-col justify-between">
                 <div className="space-y-2">
-                  <div className="w-10 h-10 rounded-xl bg-amber-950 border border-amber-800 flex items-center justify-center text-amber-700 dark:text-amber-400">
+                  <div className="w-10 h-10 rounded-xl bg-amber-50 dark:bg-amber-950 border border-amber-800 flex items-center justify-center text-amber-700 dark:text-amber-400">
                     <Layers className="w-5 h-5" />
                   </div>
                   <h3 className="text-base font-bold text-slate-900 dark:text-white">Executive Pitch Deck (.pptx)</h3>
-                  <p className="text-xs text-slate-500 dark:text-slate-500 dark:text-slate-400">
+                  <p className="text-xs text-slate-500 dark:text-slate-400">
                     Draft 16:9 presentation formatted for internal review and commercial launch alignment.
                   </p>
                 </div>
@@ -1672,11 +1672,11 @@ export default function ProjectWorkspacePage() {
               {/* Excel Spreadsheet */}
               <div className="p-6 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 space-y-4 flex flex-col justify-between">
                 <div className="space-y-2">
-                  <div className="w-10 h-10 rounded-xl bg-emerald-950 border border-emerald-800 flex items-center justify-center text-emerald-700 dark:text-emerald-400">
+                  <div className="w-10 h-10 rounded-xl bg-emerald-50 dark:bg-emerald-950 border border-emerald-800 flex items-center justify-center text-emerald-700 dark:text-emerald-400">
                     <FileSpreadsheet className="w-5 h-5" />
                   </div>
                   <h3 className="text-base font-bold text-slate-900 dark:text-white">Financial Forecast Model (.xlsx)</h3>
-                  <p className="text-xs text-slate-500 dark:text-slate-500 dark:text-slate-400">
+                  <p className="text-xs text-slate-500 dark:text-slate-400">
                     Multi-tab Excel financial workbook with patient funnel parameters, pricing calculations, and 5-year CAGR formulas.
                   </p>
                 </div>
@@ -1692,11 +1692,11 @@ export default function ProjectWorkspacePage() {
               {/* Printable Monograph Dossier */}
               <div className="p-6 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 space-y-4 flex flex-col justify-between">
                 <div className="space-y-2">
-                  <div className="w-10 h-10 rounded-xl bg-teal-950 border border-teal-800 flex items-center justify-center text-teal-700 dark:text-teal-400">
+                  <div className="w-10 h-10 rounded-xl bg-teal-50 dark:bg-teal-950 border border-teal-800 flex items-center justify-center text-teal-700 dark:text-teal-400">
                     <FileCheck2 className="w-5 h-5" />
                   </div>
                   <h3 className="text-base font-bold text-slate-900 dark:text-white">Product Monograph & Dossier</h3>
-                  <p className="text-xs text-slate-500 dark:text-slate-500 dark:text-slate-400">
+                  <p className="text-xs text-slate-500 dark:text-slate-400">
                     Printable 15-page equivalent comprehensive scientific monograph formatted for browser print and PDF export.
                   </p>
                 </div>
@@ -1719,7 +1719,7 @@ export default function ProjectWorkspacePage() {
               </h3>
               <div className="overflow-x-auto">
                 <table className="w-full text-xs text-left">
-                  <thead className="bg-slate-50 dark:bg-slate-950 text-slate-500 dark:text-slate-500 dark:text-slate-400 font-mono border-b border-slate-200 dark:border-slate-800">
+                  <thead className="bg-slate-50 dark:bg-slate-950 text-slate-500 dark:text-slate-400 font-mono border-b border-slate-200 dark:border-slate-800">
                     <tr>
                       <th className="p-3">Audit ID</th>
                       <th className="p-3">Timestamp</th>
@@ -1734,16 +1734,16 @@ export default function ProjectWorkspacePage() {
                     {auditTrail.map((log) => (
                       <tr key={log.id} className="hover:bg-slate-850/50">
                         <td className="p-3 font-mono text-teal-700 dark:text-teal-400">{log.id}</td>
-                        <td className="p-3 font-mono text-slate-500 dark:text-slate-500 dark:text-slate-400">{log.timestamp}</td>
+                        <td className="p-3 font-mono text-slate-500 dark:text-slate-400">{log.timestamp}</td>
                         <td className="p-3 font-semibold text-slate-900 dark:text-white">{log.action_type}</td>
                         <td className="p-3">{log.item_reference}</td>
-                        <td className="p-3 font-mono text-slate-500 dark:text-slate-500 dark:text-slate-400">{log.verified_source}</td>
+                        <td className="p-3 font-mono text-slate-500 dark:text-slate-400">{log.verified_source}</td>
                         <td className="p-3">
-                          <span className="px-2 py-0.5 rounded bg-emerald-950 text-emerald-700 dark:text-emerald-400 border border-emerald-800 text-[10px] font-bold">
+                          <span className="px-2 py-0.5 rounded bg-emerald-50 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-400 border border-emerald-800 text-[10px] font-bold">
                             {log.status}
                           </span>
                         </td>
-                        <td className="p-3 text-slate-500 dark:text-slate-500 dark:text-slate-400">{log.auditor}</td>
+                        <td className="p-3 text-slate-500 dark:text-slate-400">{log.auditor}</td>
                       </tr>
                     ))}
                   </tbody>
@@ -1760,7 +1760,7 @@ export default function ProjectWorkspacePage() {
             ) : (
               <div className="p-8 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-center space-y-2">
                 <div className="w-8 h-8 mx-auto rounded-full border-4 border-brand-500 border-t-transparent animate-spin" />
-                <p className="text-xs text-slate-500 dark:text-slate-500 dark:text-slate-400 font-mono">
+                <p className="text-xs text-slate-500 dark:text-slate-400 font-mono">
                   Indexing the FDA Orange Book (~49k products) — first load takes a moment…
                 </p>
               </div>

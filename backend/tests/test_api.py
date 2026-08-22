@@ -172,6 +172,46 @@ def test_brand_plan_falls_back_cleanly_with_no_competitor_data_on_file():
     assert "No source-backed competitor set is on file" in competitor_section["content_markdown"]
 
 
+def test_audit_entry_is_created():
+    entry = {
+        "id": f"AUD-TEST-{uuid.uuid4().hex[:8]}",
+        "timestamp": "2026-01-01 00:00:00",
+        "action_type": "CLAIM_VERIFIED",
+        "item_reference": "test-claim",
+        "verified_source": "Test source",
+        "status": "VERIFIED",
+        "auditor": "Test",
+    }
+    response = client.post("/api/reports/audit-trail", json=entry)
+    assert response.status_code == 201
+    assert response.json()["id"] == entry["id"]
+
+
+def test_audit_log_rejects_reusing_an_existing_id_rather_than_overwriting():
+    """The whole point of an audit trail is that it cannot be quietly
+    rewritten. Posting the same id twice with a different status must be
+    rejected, not silently applied as an edit.
+    """
+    entry_id = f"AUD-TEST-{uuid.uuid4().hex[:8]}"
+    first = {
+        "id": entry_id, "timestamp": "2026-01-01 00:00:00",
+        "action_type": "CLAIM_VERIFIED", "item_reference": "test-claim",
+        "verified_source": "Test source", "status": "VERIFIED", "auditor": "Original Auditor",
+    }
+    response = client.post("/api/reports/audit-trail", json=first)
+    assert response.status_code == 201
+
+    tampered = {**first, "status": "APPROVED", "auditor": "Different Auditor"}
+    response = client.post("/api/reports/audit-trail", json=tampered)
+    assert response.status_code == 409
+
+    # Confirm the original entry survived untouched — not silently overwritten.
+    trail = client.get("/api/reports/audit-trail").json()
+    stored = next(e for e in trail if e["id"] == entry_id)
+    assert stored["auditor"] == "Original Auditor"
+    assert stored["status"] == "VERIFIED"
+
+
 def test_creative_assets_generation():
     response = client.get("/api/assets/generate?molecule=Empagliflozin")
     assert response.status_code == 200

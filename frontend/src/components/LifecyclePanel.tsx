@@ -17,7 +17,7 @@ export default function LifecyclePanel({ data }: { data: MoleculeLifecycle }) {
         <h2 className="text-2xl font-bold text-slate-900 dark:text-white mt-1">
           {data.display_name}
         </h2>
-        <p className="text-xs text-slate-500 dark:text-slate-500 dark:text-slate-400 mt-1">{data.coverage_note}</p>
+        <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">{data.coverage_note}</p>
         {data.is_combination && (
           <p className="text-[11px] text-slate-400 mt-1">
             Fixed-dose combination · matched on {data.components.join(' + ')}
@@ -34,7 +34,7 @@ export default function LifecyclePanel({ data }: { data: MoleculeLifecycle }) {
           <p className="text-sm font-bold text-slate-900 dark:text-white">
             {data.innovator_brand || 'Not listed'}
           </p>
-          <p className="text-xs text-slate-500 dark:text-slate-500 dark:text-slate-400 mt-1">
+          <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
             {data.innovator_company || 'No FDA-listed innovator application'}
           </p>
           {data.innovator_application && (
@@ -52,7 +52,7 @@ export default function LifecyclePanel({ data }: { data: MoleculeLifecycle }) {
           <p className="text-sm font-bold text-slate-900 dark:text-white">
             {data.latest_patent_expiry || 'No listed patents'}
           </p>
-          <p className="text-xs text-slate-500 dark:text-slate-500 dark:text-slate-400 mt-1">
+          <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
             Latest of {data.patents.length} listed patent{data.patents.length === 1 ? '' : 's'}
           </p>
         </div>
@@ -65,7 +65,7 @@ export default function LifecyclePanel({ data }: { data: MoleculeLifecycle }) {
           <p className="text-sm font-bold text-slate-900 dark:text-white">
             {data.generic_entrant_count} approved filer{data.generic_entrant_count === 1 ? '' : 's'}
           </p>
-          <p className="text-xs text-slate-500 dark:text-slate-500 dark:text-slate-400 mt-1">
+          <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
             {data.first_generic_approval_date
               ? `First approval ${data.first_generic_approval_date}`
               : 'No generic approvals on record'}
@@ -166,7 +166,7 @@ export default function LifecyclePanel({ data }: { data: MoleculeLifecycle }) {
         </div>
         <ul className="pl-6 space-y-1">
           {data.unavailable.map((item, i) => (
-            <li key={i} className="text-[11px] text-slate-500 dark:text-slate-500 dark:text-slate-400 list-disc leading-relaxed">
+            <li key={i} className="text-[11px] text-slate-500 dark:text-slate-400 list-disc leading-relaxed">
               {item}
             </li>
           ))}

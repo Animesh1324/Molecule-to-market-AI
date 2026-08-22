@@ -93,7 +93,7 @@ export default function SecondaryDataUploader({ projectId }: { projectId: string
         <span className="text-xs font-mono uppercase tracking-wider text-brand-600 dark:text-brand-400 block">
           Secondary Data
         </span>
-        <p className="text-xs text-slate-500 dark:text-slate-500 dark:text-slate-400 mt-1">
+        <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
           Attach the data no public source carries — IQVIA/AWACS extracts, internal price
           lists, market research. Stored against this project.
         </p>

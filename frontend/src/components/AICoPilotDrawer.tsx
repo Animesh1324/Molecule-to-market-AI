@@ -131,7 +131,7 @@ export default function AICoPilotDrawer({
         </div>
         <button
           onClick={onClose}
-          className="p-1.5 rounded-lg text-slate-500 dark:text-slate-500 dark:text-slate-400 hover:text-white hover:bg-slate-800 transition"
+          className="p-1.5 rounded-lg text-slate-500 dark:text-slate-400 hover:text-white hover:bg-slate-800 transition"
         >
           <X className="w-5 h-5" />
         </button>
@@ -148,7 +148,7 @@ export default function AICoPilotDrawer({
               {m.sender === 'user' ? (
                 <>
                   <span>You</span>
-                  <User className="w-3 h-3 text-slate-500 dark:text-slate-500 dark:text-slate-400" />
+                  <User className="w-3 h-3 text-slate-500 dark:text-slate-400" />
                 </>
               ) : (
                 <>
@@ -171,7 +171,7 @@ export default function AICoPilotDrawer({
               {m.sender === 'ai' && (
                 <button
                   onClick={() => handleCopy(m.id, m.text)}
-                  className="absolute top-2 right-2 p-1 rounded bg-white dark:bg-slate-900/90 text-slate-500 dark:text-slate-500 dark:text-slate-400 hover:text-white opacity-0 group-hover:opacity-100 transition border border-slate-300 dark:border-slate-700"
+                  className="absolute top-2 right-2 p-1 rounded bg-white dark:bg-slate-900/90 text-slate-500 dark:text-slate-400 hover:text-white opacity-0 group-hover:opacity-100 transition border border-slate-300 dark:border-slate-700"
                   title="Copy to clipboard"
                 >
                   {copiedId === m.id ? (
@@ -186,7 +186,7 @@ export default function AICoPilotDrawer({
         ))}
 
         {isTyping && (
-          <div className="flex items-center space-x-2 text-slate-500 dark:text-slate-500 dark:text-slate-400 text-xs py-2">
+          <div className="flex items-center space-x-2 text-slate-500 dark:text-slate-400 text-xs py-2">
             <Bot className="w-4 h-4 text-teal-700 dark:text-teal-400 animate-spin" />
             <span>Analyzing clinical endpoints & generating strategic response...</span>
           </div>

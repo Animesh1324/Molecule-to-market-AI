@@ -256,12 +256,30 @@ def db_list_mlr_audit_logs():
         session.close()
 
 
+class AuditLogAlreadyExists(Exception):
+    """Raised when a write would silently overwrite an existing audit entry."""
+
+
 def db_save_mlr_audit_log(entry: Dict[str, Any]):
-    """Persist an MLR audit log entry dict into the database."""
+    """Insert a new MLR audit log entry. Never overwrites an existing one.
+
+    An audit trail a caller can quietly rewrite after the fact is not an audit
+    trail. `session.merge()` previously upserted by primary key, so posting
+    the same id twice silently replaced the earlier entry's timestamp, status,
+    and auditor — exactly the tamper path this table exists to rule out.
+    Every id is now write-once: a repeat raises rather than overwriting, and
+    the row is `add()`-ed, never merged.
+    """
     session = SessionLocal()
     try:
+        entry_id = entry.get("id")
+        if entry_id and session.get(MLRAuditLogORM, entry_id) is not None:
+            raise AuditLogAlreadyExists(
+                f"An audit entry with id '{entry_id}' already exists and cannot be "
+                "modified. Audit entries are write-once; use a new id."
+            )
         orm = MLRAuditLogORM(
-            id=entry.get("id"),
+            id=entry_id,
             timestamp=entry.get("timestamp") or datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
             action_type=entry.get("action_type"),
             item_reference=entry.get("item_reference"),
@@ -269,8 +287,14 @@ def db_save_mlr_audit_log(entry: Dict[str, Any]):
             status=entry.get("status"),
             auditor=entry.get("auditor"),
         )
-        session.merge(orm)
+        session.add(orm)
         session.commit()
+    except AuditLogAlreadyExists:
+        session.rollback()
+        raise
+    except Exception:
+        session.rollback()
+        raise
     finally:
         session.close()
 

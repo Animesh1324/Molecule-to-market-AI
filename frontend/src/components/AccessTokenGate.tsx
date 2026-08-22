@@ -54,7 +54,7 @@ export default function AccessTokenGate() {
         <div className="absolute right-0 mt-2 w-80 p-4 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 shadow-xl z-50 space-y-3">
           <div>
             <p className="text-xs font-semibold text-slate-700 dark:text-slate-200">API access token</p>
-            <p className="text-[11px] text-slate-500 dark:text-slate-500 dark:text-slate-400 mt-1">
+            <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-1">
               Required when the backend runs with <code className="font-mono">API_ACCESS_TOKEN</code> set.
               Stored in this browser only.
             </p>

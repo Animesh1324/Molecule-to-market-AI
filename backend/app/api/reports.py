@@ -65,10 +65,15 @@ async def get_audit_trail():
     return [MLRAuditEntry(**r) for r in rows]
 
 
-@router.post("/audit-trail", response_model=MLRAuditEntry)
+@router.post("/audit-trail", response_model=MLRAuditEntry, status_code=201)
 async def create_audit_entry(entry: MLRAuditEntry):
-    # Persist the audit entry
-    db.db_save_mlr_audit_log(entry.model_dump() if hasattr(entry, 'model_dump') else entry.dict())
+    """Record a new audit entry. Write-once — reusing an existing id is
+    rejected rather than silently overwriting what it already recorded.
+    """
+    try:
+        db.db_save_mlr_audit_log(entry.model_dump() if hasattr(entry, 'model_dump') else entry.dict())
+    except db.AuditLogAlreadyExists as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
     return entry
 
 @router.get("/export/docx")
