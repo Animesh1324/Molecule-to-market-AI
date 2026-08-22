@@ -78,7 +78,11 @@ app.add_middleware(SecurityHeadersMiddleware)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=settings["cors_origins"],
-    allow_credentials=True,
+    # No cookie is ever set by this API — every protected route authenticates
+    # off a header (X-API-Key / X-Session-Token), never a cookie the browser
+    # would attach automatically. allow_credentials only matters for cookies;
+    # leaving it on here is pure unused risk, not a real requirement.
+    allow_credentials=False,
     allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
     allow_headers=["*"],
 )

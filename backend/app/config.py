@@ -16,13 +16,32 @@ def _split_csv(value: Optional[str], default: str = "") -> List[str]:
     return [item.strip() for item in value.split(",") if item.strip()]
 
 
+def _reject_wildcard_cors(origins: List[str]) -> List[str]:
+    """Refuse a literal "*" in CORS_ORIGINS rather than accept it silently.
+
+    Combined with allow_credentials, Starlette's CORSMiddleware does not send
+    a literal wildcard back to the browser — since that combination is invalid
+    per the Fetch spec — it instead echoes whatever Origin the request sent,
+    which in effect allows every origin with credentials attached. The app
+    doesn't need allow_credentials at all (no endpoint issues a cookie; every
+    protected route reads a header), but an operator who typos "*" into
+    CORS_ORIGINS should get a startup error, not a silently permissive API.
+    """
+    if "*" in origins:
+        raise RuntimeError(
+            'CORS_ORIGINS cannot be "*". List the exact frontend origin(s) — '
+            "a wildcard here would accept credentialed requests from any site."
+        )
+    return origins
+
+
 @lru_cache(maxsize=1)
 def get_settings() -> dict:
     configured = os.getenv("CORS_ORIGINS")
-    origins = _split_csv(
+    origins = _reject_wildcard_cors(_split_csv(
         configured,
         "http://localhost:3000,http://127.0.0.1:3000",
-    )
+    ))
     anthropic_key = os.getenv("ANTHROPIC_API_KEY", "").strip()
     return {
         "app_env": os.getenv("APP_ENV", "development").strip().lower(),
