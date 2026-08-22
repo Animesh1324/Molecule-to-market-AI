@@ -2,13 +2,13 @@ databases:
   # Managed Postgres so projects and brand plans survive redeploys. On the free
   # SQLite fallback the container filesystem is ephemeral and every deploy or
   # restart wipes all saved work.
-  - name: pharma-brandplan-db
+  - name: molecule-to-market-db
     databaseName: brandplan
     plan: free
 
 services:
   - type: web
-    name: pharma-brandplan-backend
+    name: molecule-to-market-backend
     env: python
     rootDir: backend
     plan: free
@@ -19,10 +19,10 @@ services:
       - key: APP_ENV
         value: production
       - key: CORS_ORIGINS
-        value: https://pharma-brandplan-frontend.onrender.com
+        value: https://molecule-to-market-frontend.onrender.com
       - key: DATABASE_URL
         fromDatabase:
-          name: pharma-brandplan-db
+          name: molecule-to-market-db
           property: connectionString
       - key: PYTHON_VERSION
         value: "3.12.6"
@@ -39,7 +39,7 @@ services:
         value: high
 
   - type: web
-    name: pharma-brandplan-frontend
+    name: molecule-to-market-frontend
     env: node
     rootDir: frontend
     plan: free
@@ -49,7 +49,7 @@ services:
       # NEXT_PUBLIC_* is inlined at build time, so this must be set before the
       # build step runs, not just at runtime.
       - key: NEXT_PUBLIC_API_BASE
-        value: https://pharma-brandplan-backend.onrender.com
+        value: https://molecule-to-market-backend.onrender.com
       - key: NEXT_PUBLIC_APP_ENV
         value: production
       - key: NODE_VERSION

@@ -1,4 +1,4 @@
-# Pharma BrandPlan AI
+# Molecule to Market AI
 
 This project is a FastAPI + Next.js application for pharmaceutical brand planning, scientific intelligence, competitor analysis, and launch planning.
 
@@ -181,13 +181,151 @@ cd backend && ./.venv/bin/python scripts/ingest_openfda_bulk.py --limit 5000
 
 Full documentation: [docs/DRUG_INTELLIGENCE.md](docs/DRUG_INTELLIGENCE.md).
 
+## Research evidence (PubMed)
+
+Module 2 answers "what has been published on this molecule" — the whole
+bibliography, not a sample of it.
+
+The literature is paged through NCBI's E-utilities history server and cached
+locally, so a molecule loads instantly on every subsequent visit and keeps
+working when NCBI is briefly unreachable. Abstracts are fetched alongside the
+bibliographic record, so a reviewer can judge relevance without leaving the app.
+
+**Two counts, never merged.** The header shows what PubMed indexes next to what
+is loaded — `5,158 indexed in PubMed · 100 shown`. A partial fetch can never
+read as the whole literature. **Fetch entire corpus** pulls the rest in the
+background; **Load more** pages through what is already cached.
+
+By default the search is the whole molecule. The project's indication is an
+opt-in narrowing (the `whole molecule` / `narrowed to indication` toggle) —
+filtering rosuvastatin to "Dyslipidaemia" takes 5,158 papers down to 76, which
+is a different question and should be asked deliberately.
+
+Combinations are searched as an AND of their components, and every term is
+matched against both title/abstract and MeSH, so papers indexed only under the
+MeSH heading are not silently dropped.
+
+### What is never inferred
+
+- An unparseable publication date is stored as NULL and rendered `n.d.` — never
+  defaulted to a year.
+- Evidence tiers stay labelled *candidate*. PubMed's publication type is a
+  cataloguing decision, not a methodological appraisal.
+- Endpoints, effect sizes, and p-values are not machine-extracted from PubMed
+  metadata. Cards say so rather than showing an empty field as a result.
+
+### Rate limits
+
+NCBI allows 3 requests/second anonymously, 10 with a free API key. The key only
+changes how fast the literature loads, never how much of it is available. Set
+`NCBI_API_KEY` to use one — get it from your NCBI account settings.
+
+```bash
+# Optional. Roughly triples corpus fetch speed.
+NCBI_API_KEY=...
+```
+
+## Regulatory intelligence (openFDA)
+
+Module 4 reads live from openFDA rather than a curated table, so the US block is
+populated for essentially any molecule marketed in the States: innovator brand,
+first approval year, application numbers, indications, boxed warnings, warnings,
+and contraindications — all quoted from the FDA structured product label.
+
+India has no machine-readable approvals API. Where an Indian market extract is
+loaded, the CDSCO block reports measured market presence from it — *"Marketed in
+India — 573 brand(s) recorded, 149 companies, 3,258.67 INR Cr, MAT AUG'24"* —
+worded as **marketed**, not **approved**, because only CDSCO can say the latter.
+
+An agency with no connected source says exactly that and links its register.
+That is deliberately not the same as "not approved": the application does not
+assert a regulatory status it cannot source.
+
+```bash
+# Optional. Raises the openFDA request ceiling from 1,000/day to 120,000/day.
+# It does NOT lift the skip=25,000 paging cap — whole-corpus loading comes from
+# the bulk partitions instead (see the Drug Intelligence module).
+OPENFDA_API_KEY=...
+```
+
+## Market Intelligence (secondary data)
+
+Public sources answer *what molecules exist*. They do not answer *who am I
+competing against in this market* — that lives in a syndicated audit extract a
+brand team licenses. Drop one in and the competitor module works for every
+molecule it covers.
+
+**What it gives you, per molecule:** every marketed brand with its company,
+value, market share, and growth; corporate share of the molecule; and rival
+molecules in the same therapeutic group.
+
+### Loading an extract
+
+Two routes, same result:
+
+* **Drag it into a project** under *Secondary Data*. Any `.xlsx`/`.csv` whose
+  header carries molecule, brand, and a MAT value column is parsed automatically
+  in the background; the file stays downloadable either way. Nothing else to do.
+* **Point the API at a file already on the server** — better for a large base
+  extract that is impractical to push through a browser:
+
+```bash
+curl -X POST http://localhost:8000/api/market/ingest/path \
+  -H 'Content-Type: application/json' \
+  -d '{"path":"~/Reports/IMS TSA base file.xlsx","source_label":"IQVIA/IMS TSA","market":"India","value_unit":"INR Cr"}'
+```
+
+Column names are matched against alias lists (`MOLECULE_DESC`/`MOLECULE`,
+`BRANDS`/`BRAND`, `COMPANY`/`CORPORATE`, …), so IQVIA/IMS, PharmaTrac, and AWACS
+layouts all load without configuration. Salt forms are normalised
+(`ROSUVASTATIN CALCIUM` → `ROSUVASTATIN`) and combinations stay searchable from
+either ingredient, so `EMPAGLIFLOZIN + LINAGLIPTIN` shows up as a competitor for
+Empagliflozin.
+
+### Rules that keep the numbers honest
+
+* **One period answers a molecule.** Figures are never aggregated across
+  datasets — MAT JUN'26 plus MAT AUG'24 is not a market, it is a double-count.
+  Each molecule reads from the most recent extract that carries it, and the
+  panel states which file and period that was. Older extracts still answer
+  molecules the newer one does not cover.
+* **Re-uploading a file replaces it.** Same filename, newer period, one
+  transaction — a refresh never leaves two periods live at once.
+* **Sales facts and strategy stay separate.** Market rows carry value, share,
+  growth, and company. They leave positioning, claims, and messaging blank,
+  because an audit extract measures what sold, not how it was detailed. The 2×2
+  positioning quadrant plots only curated rows for the same reason.
+* **No data means no data.** A molecule absent from every extract returns an
+  explicit empty state, never an estimate.
+
+### What does not load
+
+Chart-heavy report decks (IPM/PharmaTrac monthly PDFs, IQVIA MFR) carry
+market context, not brand-level tables. Store them as project attachments for
+citation — they are not parsed into competitor rows, because numbers scraped
+off a chart image cannot be traced back to a source row under MLR review.
+
+### Endpoints
+
+| Endpoint | Returns |
+| --- | --- |
+| `GET /api/market/datasets` | Every ingested extract with row/brand/company counts |
+| `GET /api/market/molecule?molecule=` | Size, brands, companies, and class rivals in one call |
+| `GET /api/market/brands?molecule=` | Brand table with share and growth |
+| `GET /api/market/companies?molecule=` | Corporate share |
+| `GET /api/market/class?molecule=` | Rival molecules in the same therapeutic group |
+| `GET /api/market/search?q=` | Free-text lookup across brand, molecule, company |
+| `POST /api/market/ingest/path` | Ingest a file already on the server |
+| `DELETE /api/market/datasets/{id}` | Remove a dataset and its rows |
+
 ## Known limitations
 
 Read these before using output in a real brand plan.
 
 - **No authentication.** Every endpoint is open. Anyone who can reach the URL can read, create, and overwrite every project and brand plan. Put it behind SSO, a VPN, or an authenticating proxy before exposing it beyond your own machine.
 - **Claude drafts strategy only, never clinical claims.** With `ANTHROPIC_API_KEY` set, Claude Opus 5 drafts the plan's narrative sections grounded in the molecule and evidence data the app already fetched. It is instructed never to produce effect sizes, p-values, hazard ratios, comparative superiority, safety assurances, or dosing — and every generated field is screened by `services/compliance.py` before it reaches the plan. Text that trips the screen is withheld, the template text is kept, and a review flag is raised. Without a key the app uses the deterministic template and every other module works unchanged. `mlr_compliance_signoff_ready` stays `false` either way.
-- **Curated depth covers four molecules.** Empagliflozin, Semaglutide, Pembrolizumab, and Apixaban have hand-checked evidence, trials, and label data. Other molecules fall back to live PubChem/PubMed/ClinicalTrials.gov lookups, which return bibliographic records rather than claim-ready endpoint data. Competitor landscapes exist only for Empagliflozin; others return an explicit gap.
+- **Curated *strategy* depth covers four molecules.** Empagliflozin, Semaglutide, Pembrolizumab, and Apixaban have hand-checked evidence, trials, and label data. Other molecules fall back to live PubChem/PubMed/ClinicalTrials.gov lookups, which return bibliographic records rather than claim-ready endpoint data. Curated *strategy* narratives (positioning, claims, messaging) exist only for Empagliflozin — but the measured competitor set now comes from ingested market data for any molecule the extract covers (see Market Intelligence below).
+- **Market figures are only as current as the extract you loaded.** Share, growth, and market size come from the newest ingested file that covers the molecule — the panel names that file and period. Nothing is extrapolated forward from it.
 - **Forecast defaults are planning heuristics, not market research.** Prescriber pool sizes, regional revenue splits, scenario uptake multipliers, and the 6.8% therapy CAGR are illustrative defaults. Replace them with sourced assumptions before the numbers inform a decision.
 - **Nothing here is MLR-approved.** `mlr_compliance_signoff_ready` is always `false`. Every claim needs evidence mapping, label verification, and fair-balance review before external use.
 

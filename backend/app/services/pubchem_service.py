@@ -3,6 +3,7 @@ import logging
 from typing import Optional, Dict, Any
 from ..models.molecule import MoleculeProfile, Pharmacokinetics, SpecialPopulations, AdverseEffects
 from .molecule_resolver import resolve as resolve_molecule
+from .openfda_regulatory import fetch_molecule_clinical_profile
 
 logger = logging.getLogger(__name__)
 
@@ -431,12 +432,23 @@ async def _combination_profile(resolved) -> MoleculeProfile:
 
 
 async def fetch_molecule_intelligence(molecule_name: str) -> MoleculeProfile:
-    """Fetch molecule profile from curated database or PubChem REST API.
+    """Molecule profile: chemistry from PubChem, pharmacology from the FDA label.
 
-    PubChem provides chemistry identifiers, not label-grade clinical facts. For
-    non-curated molecules we return chemistry data only and mark clinical fields
-    as unavailable until validated from regulatory/scientific sources.
+    PubChem is a chemical registry — it answers formula, weight, and structure,
+    and carries no pharmacology at all. On its own it left every clinical field
+    reading "Not verified" for any molecule without a hand-written entry.
+
+    So the chemistry layer is built first and then enriched from the molecule's
+    FDA structured product label, which is where class, mechanism, indications,
+    dosing, contraindications, and interactions actually live. Enrichment only
+    fills fields that are empty, so curated values always win.
     """
+    profile = await _chemistry_profile(molecule_name)
+    return await _enrich_from_label(profile, molecule_name)
+
+
+async def _chemistry_profile(molecule_name: str) -> MoleculeProfile:
+    """Chemistry-layer profile: curated entry, combination, or PubChem."""
     clean_name = molecule_name.strip().lower()
 
     if clean_name in CURATED_MOLECULES:
@@ -565,3 +577,57 @@ async def fetch_molecule_intelligence(molecule_name: str) -> MoleculeProfile:
         differentiating_science="No verified differentiation claim is available.",
         key_targets=[]
     )
+
+
+async def _enrich_from_label(profile: MoleculeProfile, molecule_name: str) -> MoleculeProfile:
+    """Fill the clinical fields PubChem cannot answer, from the FDA label.
+
+    PubChem is a chemical registry — formula, weight, SMILES. It has no
+    pharmacology, so every clinical field on a non-curated molecule rendered
+    "Not verified". Those exact fields live on the FDA structured product label.
+
+    Only empty fields are filled: a curated or PubChem-supplied value always
+    wins, and a label section the SPL omits leaves the field as it was rather
+    than borrowing text from a different product.
+    """
+    try:
+        clinical = await fetch_molecule_clinical_profile(molecule_name)
+    except Exception:
+        logger.warning("openFDA clinical enrichment failed for %s", molecule_name, exc_info=True)
+        return profile
+    if not clinical:
+        return profile
+
+    _PLACEHOLDER = ("not verified", "not available", "")
+
+    def blank(value) -> bool:
+        if value is None:
+            return True
+        if isinstance(value, str):
+            lowered = value.strip().lower()
+            return any(lowered.startswith(p) for p in _PLACEHOLDER if p) or lowered == ""
+        return len(value) == 0
+
+    updates: Dict[str, Any] = {}
+    for field in ("pharmacological_class", "mechanism_of_action", "pharmacodynamics",
+                  "approved_indications", "dosage_forms", "routes_of_administration",
+                  "standard_dosages", "contraindications", "black_box_warnings",
+                  "drug_interactions"):
+        incoming = clinical.get(field)
+        if incoming and blank(getattr(profile, field, None)):
+            updates[field] = incoming
+
+    pk_incoming = clinical.get("pharmacokinetics") or {}
+    pk_updates = {
+        field: value for field, value in pk_incoming.items()
+        if value and blank(getattr(profile.pharmacokinetics, field, None))
+    }
+    if pk_updates:
+        updates["pharmacokinetics"] = profile.pharmacokinetics.model_copy(update=pk_updates)
+
+    adverse = clinical.get("adverse_effects") or []
+    if adverse and not profile.adverse_effects.common:
+        updates["adverse_effects"] = profile.adverse_effects.model_copy(
+            update={"common": adverse[:10]})
+
+    return profile.model_copy(update=updates) if updates else profile

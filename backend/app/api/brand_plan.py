@@ -120,5 +120,14 @@ async def fetch_brand_plan(project_id: str):
 
 @router.put("/{project_id}", response_model=CompleteBrandPlan)
 async def update_brand_plan(project_id: str, updated_plan: CompleteBrandPlan):
-    db.db_save_brand_plan(project_id, updated_plan.model_dump() if hasattr(updated_plan, 'model_dump') else updated_plan.dict())
-    return updated_plan
+    """Persist an edited plan.
+
+    MLR signoff is forced false on write. This endpoint accepts a whole plan
+    from the client, so an omitted or hand-set flag would otherwise let an
+    unreviewed plan claim it had cleared medical, legal, and regulatory review.
+    Signoff is a human act recorded outside this application.
+    """
+    payload = updated_plan.model_dump() if hasattr(updated_plan, 'model_dump') else updated_plan.dict()
+    payload["mlr_compliance_signoff_ready"] = False
+    db.db_save_brand_plan(project_id, payload)
+    return CompleteBrandPlan(**payload)

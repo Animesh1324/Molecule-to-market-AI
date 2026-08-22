@@ -1,12 +1,39 @@
-import httpx
+"""PubMed literature retrieval for a molecule.
+
+Completeness is the point. The evidence module is meant to answer "what has been
+published on this molecule", so it pages the entire result set through NCBI's
+history server and caches it, rather than showing the first 25 hits and calling
+it the literature.
+
+Three rules hold throughout:
+
+* **Nothing is invented.** An unparseable publication date is stored as NULL,
+  never defaulted to a year. A record without an abstract says so.
+* **The true total is always reported**, separately from how many records were
+  pulled down, so a partial fetch can never read as the whole literature.
+* **Evidence tiers stay labelled "candidate".** PubMed's publication type is a
+  cataloguing decision, not a methodological appraisal.
+"""
+import asyncio
+import hashlib
+import json
 import logging
-from typing import List, Dict, Any, Optional
+import os
+import re
+import time
+import xml.etree.ElementTree as ET
+from datetime import datetime
+from typing import Any, Dict, List, Optional
+
+import httpx
+
+from ..db.database import SessionLocal
+from ..db.evidence_models import PubMedPaperORM, PubMedQueryORM
 from ..models.evidence import ResearchPaper, ClaimEvidenceMapping
 from .molecule_resolver import resolve as resolve_molecule
 
 logger = logging.getLogger(__name__)
 
-# Curated landmark evidence repository
 CURATED_PAPERS: Dict[str, List[Dict[str, Any]]] = {
     "empagliflozin": [
         {
@@ -186,117 +213,496 @@ CURATED_PAPERS: Dict[str, List[Dict[str, Any]]] = {
     ]
 }
 
-async def search_pubmed_evidence(molecule_name: str, indication: Optional[str] = None) -> List[ResearchPaper]:
-    """Search PubMed E-utilities or return curated high-relevance clinical literature.
 
-    Never synthesize papers or endpoint data. Unknown or unavailable data must
-    remain blank so downstream MLR review can distinguish evidence from gaps.
+
+# ---------------------------------------------------------------------------
+# Live PubMed retrieval
+#
+# The previous implementation asked for 25 records, kept only the first page,
+# and returned curated papers *instead of* searching when a molecule happened to
+# be curated — so Empagliflozin reported four papers when PubMed indexes
+# thousands. It also defaulted an unparseable publication date to the year 2024,
+# which put a fabricated year on a real citation.
+#
+# This version pages the whole result set through the E-utilities history
+# server, stores it, and reports the true total separately from how much has
+# been pulled down, so "complete" is a claim the UI can actually make.
+# ---------------------------------------------------------------------------
+
+EUTILS = "https://eutils.ncbi.nlm.nih.gov/entrez/eutils"
+
+# NCBI allows 3 requests/second anonymously and 10 with a key. Staying under the
+# limit matters: exceeding it earns an IP block, which would take the evidence
+# module down entirely rather than just slowing it.
+_API_KEY = (os.getenv("NCBI_API_KEY") or "").strip()
+_MIN_INTERVAL = 0.11 if _API_KEY else 0.34
+
+# esummary tolerates large id batches; 200 keeps each response a sane size.
+SUMMARY_BATCH = 200
+ABSTRACT_BATCH = 100
+# Ceiling on one fetch pass. Some molecules (aspirin, metformin) index six
+# figures of papers; pulling all of them on a page load helps nobody. The true
+# total is always reported, so the UI never implies this ceiling is everything.
+DEFAULT_MAX_RECORDS = int(os.getenv("PUBMED_MAX_RECORDS", "2000"))
+CACHE_TTL_HOURS = int(os.getenv("PUBMED_CACHE_TTL_HOURS", "168"))
+
+_rate_lock = asyncio.Lock()
+_last_call = 0.0
+
+
+async def _throttled_get(client: httpx.AsyncClient, url: str, params: Dict[str, Any]):
+    """Serialise NCBI calls to stay inside the published rate limit."""
+    global _last_call
+    if _API_KEY:
+        params = {**params, "api_key": _API_KEY}
+    params = {**params, "tool": "molecule-to-market-ai", "email": os.getenv("NCBI_EMAIL", "")}
+    async with _rate_lock:
+        delta = time.monotonic() - _last_call
+        if delta < _MIN_INTERVAL:
+            await asyncio.sleep(_MIN_INTERVAL - delta)
+        _last_call = time.monotonic()
+    return await client.get(url, params=params)
+
+
+def _query_id(molecule: str, indication: Optional[str]) -> str:
+    raw = f"{molecule.strip().lower()}|{(indication or '').strip().lower()}"
+    return hashlib.sha1(raw.encode()).hexdigest()[:20]
+
+
+def build_query(molecule: str, indication: Optional[str] = None,
+                clinical_only: bool = False) -> str:
+    """PubMed query for a molecule, searching each component of a combination.
+
+    A fixed-dose combination has to be an AND of its components: sending
+    "Empagliflozin + Metformin[Title/Abstract]" as one phrase matches nothing.
     """
-    clean_name = molecule_name.strip().lower()
+    resolved = resolve_molecule(molecule)
+    terms = resolved.components or [molecule]
+    # Search the whole record, not just title/abstract — restricting to
+    # Title/Abstract silently drops papers indexed under the MeSH term only.
+    clauses = " AND ".join(f'("{t}"[Title/Abstract] OR "{t}"[MeSH Terms])' for t in terms)
+    query = f"({clauses})"
+    if indication:
+        query += f' AND ("{indication}"[Title/Abstract] OR "{indication}"[MeSH Terms])'
+    if clinical_only:
+        query += " AND (clinical trial[Filter] OR systematic review[Filter] OR meta-analysis[Filter])"
+    return query
 
-    if clean_name in CURATED_PAPERS:
-        return [ResearchPaper(**p) for p in CURATED_PAPERS[clean_name]]
 
-    # A fixed-dose combination has to be searched as an AND of its components.
-    # Sending "Empagliflozin + Metformin[Title/Abstract]" as one phrase matches
-    # nothing, which is why combination searches came back empty.
-    resolved = resolve_molecule(molecule_name)
-    if resolved.is_combination:
-        combo_key = " + ".join(resolved.components).lower()
-        if combo_key in CURATED_PAPERS:
-            return [ResearchPaper(**p) for p in CURATED_PAPERS[combo_key]]
+def _classify(pub_types: List[str]) -> tuple:
+    """Map PubMed publication types onto a study type and an evidence tier.
 
-    # Try fetching live from NCBI E-Utilities
-    papers: List[ResearchPaper] = []
+    Tiers are labelled "candidate" throughout: PubMed's publication type is a
+    cataloguing decision, not a methodological appraisal, and calling a record
+    Level 1 without reading it would be exactly the unsourced assertion this
+    application is supposed to avoid.
+    """
+    lowered = " ".join(pub_types).lower()
+    study_type = ", ".join(pub_types[:2]) if pub_types else "Journal Article"
+    if "meta-analysis" in lowered:
+        return study_type, "Candidate Level 1 — meta-analysis, verify methodology"
+    if "systematic review" in lowered:
+        return study_type, "Candidate Level 1 — systematic review, verify methodology"
+    if "randomized controlled trial" in lowered:
+        return study_type, "Candidate Level 1 — RCT, verify full text"
+    if "clinical trial" in lowered:
+        return study_type, "Candidate Level 2 — clinical trial, verify design"
+    if "review" in lowered:
+        return study_type, "Candidate Level 3 — narrative review"
+    if "case reports" in lowered:
+        return study_type, "Candidate Level 4 — case report"
+    return study_type, "Unrated — requires medical review"
+
+
+def _parse_year(pubdate: str) -> Optional[int]:
+    """Year from a PubMed date string, or None. Never a default."""
+    match = re.search(r"(1[89]\d{2}|20\d{2})", pubdate or "")
+    return int(match.group(1)) if match else None
+
+
+def _extract_ids(item: Dict[str, Any]) -> Dict[str, Optional[str]]:
+    """Pull DOI and PMCID out of the articleids array by type, not position.
+
+    The previous code took articleids[0], which is the PMID entry, and stored it
+    in the doi field — so every record carried a DOI that was not a DOI.
+    """
+    ids = {"doi": None, "pmcid": None}
+    for entry in item.get("articleids") or []:
+        kind = (entry.get("idtype") or "").lower()
+        value = entry.get("value")
+        if kind == "doi" and value:
+            ids["doi"] = str(value)
+        elif kind == "pmc" and value:
+            ids["pmcid"] = str(value)
+    return ids
+
+
+async def _esearch_history(client: httpx.AsyncClient, query: str) -> Dict[str, Any]:
+    """Run the search, keeping results on NCBI's history server."""
+    response = await _throttled_get(client, f"{EUTILS}/esearch.fcgi", {
+        "db": "pubmed", "term": query, "retmode": "json",
+        "usehistory": "y", "retmax": "0", "sort": "pub_date",
+    })
+    response.raise_for_status()
+    result = response.json().get("esearchresult", {}) or {}
+    return {
+        "count": int(result.get("count") or 0),
+        "webenv": result.get("webenv"),
+        "query_key": result.get("querykey"),
+    }
+
+
+async def _fetch_summaries(client: httpx.AsyncClient, webenv: str, query_key: str,
+                           total: int, max_records: int) -> List[Dict[str, Any]]:
+    """Page esummary through the history server until the cap or the end."""
+    wanted = min(total, max_records)
+    records: List[Dict[str, Any]] = []
+    for start in range(0, wanted, SUMMARY_BATCH):
+        response = await _throttled_get(client, f"{EUTILS}/esummary.fcgi", {
+            "db": "pubmed", "retmode": "json", "WebEnv": webenv,
+            "query_key": query_key, "retstart": str(start),
+            "retmax": str(min(SUMMARY_BATCH, wanted - start)),
+        })
+        if response.status_code != 200:
+            logger.warning("esummary page at %d returned %s", start, response.status_code)
+            break
+        payload = response.json().get("result", {}) or {}
+        for pmid in payload.get("uids", []) or []:
+            item = payload.get(pmid)
+            if item:
+                records.append(item)
+    return records
+
+
+async def _fetch_abstracts(client: httpx.AsyncClient, pmids: List[str]) -> Dict[str, str]:
+    """Abstract text per PMID.
+
+    Turns "clinical findings require full-text extraction" into the actual
+    abstract, which is what a reviewer needs to judge whether a paper supports a
+    claim. Structured abstracts keep their section labels.
+    """
+    abstracts: Dict[str, str] = {}
+    for start in range(0, len(pmids), ABSTRACT_BATCH):
+        batch = pmids[start:start + ABSTRACT_BATCH]
+        try:
+            response = await _throttled_get(client, f"{EUTILS}/efetch.fcgi", {
+                "db": "pubmed", "id": ",".join(batch),
+                "retmode": "xml", "rettype": "abstract",
+            })
+            if response.status_code != 200:
+                continue
+            root = ET.fromstring(response.text)
+            for article in root.iter("PubmedArticle"):
+                pmid_node = article.find(".//MedlineCitation/PMID")
+                if pmid_node is None or not pmid_node.text:
+                    continue
+                parts: List[str] = []
+                for node in article.iter("AbstractText"):
+                    label = node.get("Label")
+                    text = "".join(node.itertext()).strip()
+                    if not text:
+                        continue
+                    parts.append(f"{label}: {text}" if label else text)
+                if parts:
+                    abstracts[pmid_node.text.strip()] = "\n\n".join(parts)
+        except ET.ParseError:
+            logger.warning("Could not parse abstract XML for batch starting %d", start)
+        except Exception:
+            logger.exception("Abstract fetch failed for batch starting %d", start)
+    return abstracts
+
+
+# ---------------------------------------------------------------------------
+# Cache
+# ---------------------------------------------------------------------------
+
+def _paper_from_orm(row: PubMedPaperORM, molecule: str) -> ResearchPaper:
+    authors = json.loads(row.authors_json or "[]")
+    return ResearchPaper(
+        id=f"PMID-{row.pmid}",
+        pmid=row.pmid,
+        pmcid=row.pmcid,
+        doi=row.doi,
+        title=row.title,
+        authors=authors,
+        journal=row.journal or "Journal not stated in PubMed record",
+        # The model requires an int; 0 is the sentinel for "PubMed carried no
+        # parseable date". It is never rendered as a year by the UI.
+        publication_year=row.publication_year or 0,
+        study_type=row.study_type or "Journal Article",
+        evidence_level=row.evidence_level or "Unrated — requires medical review",
+        sample_size=None,
+        primary_endpoint_result=None,
+        hazard_ratio=None,
+        relative_risk_reduction=None,
+        p_value=None,
+        key_findings=(row.abstract or
+                      "PubMed indexed this record without an abstract. Open the "
+                      "publication to review its findings."),
+        limitations=("Effect sizes, population, and endpoints are not machine-extracted "
+                     "from PubMed metadata — read the publication before citing."),
+        claim_support_potential=("Citation candidate. Not claim-ready until reviewed "
+                                 "against the publication and the approved label."),
+        relevance_score=0.75,
+        url=f"https://pubmed.ncbi.nlm.nih.gov/{row.pmid}/",
+    )
+
+
+def _store(records: List[Dict[str, Any]], abstracts: Dict[str, str]) -> List[str]:
+    """Upsert summary records, returning the PMIDs in the order given."""
+    now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    session = SessionLocal()
+    ordered: List[str] = []
     try:
-        terms = resolved.components or [molecule_name]
-        molecule_clause = " AND ".join(f"{t}[Title/Abstract]" for t in terms)
-        query = f"({molecule_clause}) AND (clinical trial[Filter] OR systematic review[Filter])"
-        if indication:
-            query += f" AND {indication}[Title/Abstract]"
-        
-        async with httpx.AsyncClient(timeout=8.0) as client:
-            esearch_url = "https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esearch.fcgi"
-            params = {
-                "db": "pubmed",
-                "term": query,
-                "retmode": "json",
-                "retmax": "25",
-                "sort": "pub_date"
-            }
-            search_resp = await client.get(esearch_url, params=params)
-            
-            if search_resp.status_code == 200:
-                data = search_resp.json()
-                id_list = data.get("esearchresult", {}).get("idlist", [])
-                
-                if id_list:
-                    esummary_url = "https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esummary.fcgi"
-                    sum_params = {
-                        "db": "pubmed",
-                        "id": ",".join(id_list),
-                        "retmode": "json"
-                    }
-                    sum_resp = await client.get(esummary_url, params=sum_params)
-                    
-                    if sum_resp.status_code == 200:
-                        sum_data = sum_resp.json().get("result", {})
-                        for pmid in id_list:
-                            item = sum_data.get(pmid, {})
-                            if not item:
-                                continue
-                            
-                            pub_year = 2024
-                            pub_date = item.get("pubdate", "")
-                            if pub_date and len(pub_date) >= 4 and pub_date[:4].isdigit():
-                                pub_year = int(pub_date[:4])
-                            
-                            authors = [a.get("name", "") for a in item.get("authors", [])][:5]
-                            title = item.get("title", f"Clinical study on {molecule_name.title()}")
-                            journal = item.get("source", "Peer-Reviewed Medical Journal")
-                            
-                            pub_types = item.get("pubtype", []) or []
-                            study_type = ", ".join(pub_types[:2]) if pub_types else "Unclassified PubMed Record"
-                            evidence_level = "Unrated - requires medical review"
-                            lowered_types = " ".join(pub_types).lower()
-                            if "randomized controlled trial" in lowered_types:
-                                evidence_level = "Candidate Level 1 - verify full text"
-                            elif "systematic review" in lowered_types or "meta-analysis" in lowered_types:
-                                evidence_level = "Candidate Level 1 - verify methodology"
+        for item in records:
+            pmid = str(item.get("uid") or "").strip()
+            if not pmid:
+                continue
+            ordered.append(pmid)
+            pub_types = [str(t) for t in (item.get("pubtype") or [])]
+            study_type, evidence_level = _classify(pub_types)
+            ids = _extract_ids(item)
+            row = session.get(PubMedPaperORM, pmid)
+            values = dict(
+                pmcid=ids["pmcid"],
+                doi=ids["doi"],
+                title=(item.get("title") or "Title not stated in PubMed record").strip(),
+                authors_json=json.dumps([a.get("name", "") for a in (item.get("authors") or [])
+                                         if a.get("name")]),
+                journal=item.get("source") or None,
+                publication_year=_parse_year(item.get("pubdate") or ""),
+                publication_date=item.get("pubdate") or None,
+                pub_types_json=json.dumps(pub_types),
+                study_type=study_type,
+                evidence_level=evidence_level,
+                fetched_at=now,
+            )
+            abstract = abstracts.get(pmid)
+            if row is None:
+                session.add(PubMedPaperORM(pmid=pmid, abstract=abstract, **values))
+            else:
+                for field, value in values.items():
+                    setattr(row, field, value)
+                # Never overwrite a stored abstract with nothing.
+                if abstract:
+                    row.abstract = abstract
+        session.commit()
+    except Exception:
+        session.rollback()
+        logger.exception("Storing PubMed records failed")
+        raise
+    finally:
+        session.close()
+    return ordered
 
-                            papers.append(ResearchPaper(
-                                id=f"PMID-{pmid}",
-                                pmid=pmid,
-                                doi=item.get("articleids", [{}])[0].get("value") if item.get("articleids") else None,
-                                title=title,
-                                authors=authors if authors else ["Clinical Investigators"],
-                                journal=journal,
-                                publication_year=pub_year,
-                                study_type=study_type,
-                                evidence_level=evidence_level,
-                                sample_size=None,
-                                primary_endpoint_result=None,
-                                hazard_ratio=None,
-                                relative_risk_reduction=None,
-                                p_value=None,
-                                key_findings="PubMed bibliographic record found. Clinical findings require abstract/full-text extraction and medical review before use.",
-                                limitations="Endpoint, population, and effect-size details are not parsed from PubMed summary metadata.",
-                                claim_support_potential="Citation candidate only; not claim-ready until reviewed against the publication and approved label.",
-                                relevance_score=0.75,
-                                url=f"https://pubmed.ncbi.nlm.nih.gov/{pmid}/"
-                            ))
-    except Exception as e:
-        logger.warning(f"Live PubMed query error for {molecule_name}: {e}")
-    
-    if papers:
-        return papers
-    
+
+def _load_cached(query_id: str, limit: Optional[int], offset: int,
+                 molecule: str) -> Optional[Dict[str, Any]]:
+    session = SessionLocal()
+    try:
+        query = session.get(PubMedQueryORM, query_id)
+        if query is None:
+            return None
+        age_hours = 999.0
+        try:
+            fetched = datetime.strptime(query.fetched_at, "%Y-%m-%d %H:%M:%S")
+            age_hours = (datetime.now() - fetched).total_seconds() / 3600.0
+        except (ValueError, TypeError):
+            pass
+        pmids = json.loads(query.pmids_json or "[]")
+        window = pmids[offset:offset + limit] if limit else pmids[offset:]
+        rows = {r.pmid: r for r in session.query(PubMedPaperORM)
+                .filter(PubMedPaperORM.pmid.in_(window)).all()} if window else {}
+        papers = [_paper_from_orm(rows[p], molecule) for p in window if p in rows]
+        return {
+            "papers": papers,
+            "total_available": query.total_available,
+            "fetched_count": query.fetched_count,
+            "complete": bool(query.complete),
+            "stale": age_hours > CACHE_TTL_HOURS,
+            "fetched_at": query.fetched_at,
+            "status": query.status,
+        }
+    finally:
+        session.close()
+
+
+def _save_query(query_id: str, molecule: str, indication: Optional[str], query_string: str,
+                total: int, pmids: List[str], complete: bool,
+                status: str = "ready", message: Optional[str] = None) -> None:
+    now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    session = SessionLocal()
+    try:
+        row = session.get(PubMedQueryORM, query_id)
+        values = dict(
+            molecule=molecule, molecule_key=molecule.strip().lower(),
+            indication=indication, query_string=query_string,
+            total_available=total, fetched_count=len(pmids),
+            pmids_json=json.dumps(pmids), complete=1 if complete else 0,
+            status=status, message=message, fetched_at=now,
+        )
+        if row is None:
+            session.add(PubMedQueryORM(id=query_id, **values))
+        else:
+            for field, value in values.items():
+                setattr(row, field, value)
+        session.commit()
+    except Exception:
+        session.rollback()
+        logger.exception("Storing PubMed query state failed")
+    finally:
+        session.close()
+
+
+def _mark_query_error(query_id: str, molecule: str, indication: Optional[str],
+                      query_string: str, message: str) -> None:
+    """Flag a failed fetch, preserving any corpus already stored."""
+    now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    session = SessionLocal()
+    try:
+        row = session.get(PubMedQueryORM, query_id)
+        if row is None:
+            session.add(PubMedQueryORM(
+                id=query_id, molecule=molecule, molecule_key=molecule.strip().lower(),
+                indication=indication, query_string=query_string,
+                total_available=0, fetched_count=0, pmids_json=json.dumps([]),
+                complete=0, status="error", message=message, fetched_at=now,
+            ))
+        else:
+            row.status = "error"
+            row.message = message
+            # fetched_at is deliberately not advanced: the cache is as old as
+            # its last successful fetch, and a failure should not hide that.
+        session.commit()
+    except Exception:
+        session.rollback()
+        logger.exception("Recording PubMed error state failed")
+    finally:
+        session.close()
+
+
+# ---------------------------------------------------------------------------
+# Public API
+# ---------------------------------------------------------------------------
+
+async def fetch_pubmed_corpus(molecule: str, indication: Optional[str] = None,
+                              max_records: int = DEFAULT_MAX_RECORDS,
+                              with_abstracts: bool = True) -> Dict[str, Any]:
+    """Fetch and cache the PubMed bibliography for a molecule.
+
+    Returns the true total PubMed reports alongside how many were stored, so a
+    partial fetch is always visible as partial rather than passed off as the
+    whole literature.
+    """
+    query_id = _query_id(molecule, indication)
+    query_string = build_query(molecule, indication)
+
+    try:
+        async with httpx.AsyncClient(timeout=30.0) as client:
+            search = await _esearch_history(client, query_string)
+            total = search["count"]
+            if not total or not search["webenv"]:
+                _save_query(query_id, molecule, indication, query_string, total, [], True)
+                return {"total_available": total, "fetched_count": 0, "complete": True}
+
+            records = await _fetch_summaries(client, search["webenv"], search["query_key"],
+                                             total, max_records)
+            pmids = [str(r.get("uid")) for r in records if r.get("uid")]
+            abstracts = await _fetch_abstracts(client, pmids) if (with_abstracts and pmids) else {}
+
+        ordered = _store(records, abstracts)
+        complete = len(ordered) >= total
+        _save_query(query_id, molecule, indication, query_string, total, ordered, complete)
+        logger.info("PubMed %s: %d of %d records cached", molecule, len(ordered), total)
+        return {"total_available": total, "fetched_count": len(ordered), "complete": complete}
+    except Exception as exc:
+        logger.exception("PubMed corpus fetch failed for %s", molecule)
+        # Record the failure WITHOUT clearing what is already cached. A transient
+        # NCBI outage must not empty a module that was working a minute ago —
+        # writing zeros here destroyed the corpus on every failed refresh.
+        _mark_query_error(query_id, molecule, indication, query_string, str(exc)[:400])
+        raise
+
+
+async def get_evidence_page(molecule: str, indication: Optional[str] = None,
+                            limit: int = 100, offset: int = 0,
+                            refresh: bool = False) -> Dict[str, Any]:
+    """One page of the molecule's literature, fetching it first if needed."""
+    query_id = _query_id(molecule, indication)
+    cached = None if refresh else _load_cached(query_id, limit, offset, molecule)
+
+    if cached is None or cached["stale"] or (refresh and offset == 0):
+        try:
+            await fetch_pubmed_corpus(molecule, indication)
+            cached = _load_cached(query_id, limit, offset, molecule)
+        except Exception:
+            # A live failure must not empty a module that already has data.
+            if cached is None:
+                cached = _load_cached(query_id, limit, offset, molecule)
+
+    curated = _curated_for(molecule)
+    if cached is None:
+        return {
+            "molecule": molecule.title(), "papers": curated,
+            "total_available": len(curated), "fetched_count": len(curated),
+            "returned": len(curated), "offset": offset, "limit": limit,
+            "complete": True, "source": "curated" if curated else "none",
+            "fetched_at": None,
+        }
+
+    papers = cached["papers"]
+    if offset == 0 and curated:
+        # Curated papers carry hand-checked endpoints and effect sizes that
+        # PubMed metadata does not, so they lead — de-duplicated by PMID.
+        seen = {p.pmid for p in curated if p.pmid}
+        papers = curated + [p for p in papers if p.pmid not in seen]
+
+    return {
+        "molecule": molecule.title(),
+        "papers": papers,
+        "total_available": max(cached["total_available"], len(curated)),
+        "fetched_count": cached["fetched_count"],
+        "returned": len(papers),
+        "offset": offset,
+        "limit": limit,
+        "complete": cached["complete"],
+        "source": "pubmed",
+        "fetched_at": cached["fetched_at"],
+        "query": build_query(molecule, indication),
+    }
+
+
+def _curated_for(molecule: str) -> List[ResearchPaper]:
+    """Hand-checked papers for this molecule, if any exist."""
+    clean = molecule.strip().lower()
+    if clean in CURATED_PAPERS:
+        return [ResearchPaper(**p) for p in CURATED_PAPERS[clean]]
+    resolved = resolve_molecule(molecule)
+    if resolved.is_combination:
+        combo = " + ".join(resolved.components).lower()
+        if combo in CURATED_PAPERS:
+            return [ResearchPaper(**p) for p in CURATED_PAPERS[combo]]
     return []
 
+
+async def search_pubmed_evidence(molecule_name: str, indication: Optional[str] = None,
+                                 limit: int = 100) -> List[ResearchPaper]:
+    """Backwards-compatible entry point: the first page of the literature.
+
+    Curated papers no longer *replace* the PubMed search — they lead it. A
+    curated molecule previously returned four papers and never queried PubMed
+    at all, which is why the evidence module looked thin for exactly the
+    molecules the app knows best.
+    """
+    page = await get_evidence_page(molecule_name, indication, limit=limit, offset=0)
+    return page["papers"]
+
+
 def map_claims_to_evidence(papers: List[ResearchPaper]) -> List[ClaimEvidenceMapping]:
-    """Generate conservative Claim-to-Evidence mappings for MLR triage."""
+    """Conservative claim-to-evidence mappings for MLR triage."""
     if not papers:
         return []
+
 
     mappings = []
     

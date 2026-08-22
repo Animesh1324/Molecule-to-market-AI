@@ -1,4 +1,4 @@
-# Final Audit & Deployment Checklist — Pharma BrandPlan AI
+# Final Audit & Deployment Checklist — Molecule to Market AI
 
 This checklist helps finalize the MVP before production deployment.
 

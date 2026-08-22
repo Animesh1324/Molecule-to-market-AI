@@ -1,5 +1,5 @@
 """
-Standardized AI Prompt Engineering Library for Pharma BrandPlan AI.
+Standardized AI Prompt Engineering Library for Molecule to Market AI.
 Contains structured prompts and system instructions across all 10 modules.
 """
 

@@ -34,11 +34,13 @@ import SecondaryDataUploader from '../../../components/SecondaryDataUploader';
 import PatientFunnel from '../../../components/PatientFunnel';
 import ForecastCharts from '../../../components/ForecastCharts';
 import PositioningMatrix from '../../../components/PositioningMatrix';
+import MarketIntelligencePanel from '../../../components/MarketIntelligencePanel';
 import VisualAidCarousel from '../../../components/VisualAidCarousel';
 import MRObjectionSimulator from '../../../components/MRObjectionSimulator';
 import AICoPilotDrawer from '../../../components/AICoPilotDrawer';
 
 import {
+  EvidenceLibrary,
   Project,
   MoleculeProfile,
   ResearchPaper,
@@ -61,6 +63,8 @@ import {
   fetchProjectById,
   fetchMoleculeProfile,
   fetchEvidencePapers,
+  fetchEvidenceLibrary,
+  fetchEntireCorpus,
   fetchClaimMappings,
   fetchClinicalTrials,
   fetchRegulatoryLabels,
@@ -91,6 +95,15 @@ export default function ProjectWorkspacePage() {
   const [project, setProject] = useState<Project | null>(null);
   const [molecule, setMolecule] = useState<MoleculeProfile | null>(null);
   const [papers, setPapers] = useState<ResearchPaper[]>([]);
+  // Corpus accounting is kept apart from the loaded page: `total_available` is
+  // what PubMed indexes, `papers.length` is what is on screen. Collapsing the
+  // two is how "4 landmark papers" came to stand in for 4,407.
+  const [library, setLibrary] = useState<EvidenceLibrary | null>(null);
+  const [libraryBusy, setLibraryBusy] = useState(false);
+  // Off by default: the module is the molecule's whole literature. Narrowing by
+  // the project indication is a deliberate act, not the starting position.
+  const [narrowToIndication, setNarrowToIndication] = useState(false);
+  const PAGE_SIZE = 100;
   const [claims, setClaims] = useState<ClaimEvidenceMapping[]>([]);
   const [trials, setTrials] = useState<ClinicalTrialLandscape | null>(null);
   const [regulatory, setRegulatory] = useState<RegulatoryIntelligence | null>(null);
@@ -134,7 +147,7 @@ export default function ProjectWorkspacePage() {
         // Fetch parallel module data
         const [
           molData,
-          paperData,
+          libraryData,
           claimData,
           trialData,
           regData,
@@ -146,7 +159,7 @@ export default function ProjectWorkspacePage() {
           audData
         ] = await Promise.all([
           fetchMoleculeProfile(molName),
-          fetchEvidencePapers(molName, proj.primary_indication),
+          fetchEvidenceLibrary(molName, undefined, PAGE_SIZE, 0),
           fetchClaimMappings(molName, proj.primary_indication),
           fetchClinicalTrials(molName, proj.primary_indication),
           fetchRegulatoryLabels(molName),
@@ -174,7 +187,8 @@ export default function ProjectWorkspacePage() {
         ]);
 
         setMolecule(molData);
-        setPapers(paperData);
+        setLibrary(libraryData);
+        setPapers(libraryData.papers);
         setClaims(claimData);
         setTrials(trialData);
         setRegulatory(regData);
@@ -302,7 +316,89 @@ export default function ProjectWorkspacePage() {
     );
   }
 
+  /** Append the next page of the literature to what is already on screen. */
+  const loadMorePapers = async () => {
+    if (!library || libraryBusy) return;
+    setLibraryBusy(true);
+    try {
+      const next = await fetchEvidenceLibrary(
+        project.target_molecule_name,
+        narrowToIndication ? project.primary_indication : undefined,
+        PAGE_SIZE,
+        papers.length
+      );
+      // De-duplicate on PMID: page 1 is curated-first, so a curated paper can
+      // legitimately reappear inside a later PubMed page.
+      const seen = new Set(papers.map((p) => p.pmid).filter(Boolean));
+      setPapers([...papers, ...next.papers.filter((p) => !p.pmid || !seen.has(p.pmid))]);
+      setLibrary({ ...next, papers: [] });
+    } catch (e) {
+      setLoadError(e instanceof Error ? e.message : 'Could not load more papers.');
+    } finally {
+      setLibraryBusy(false);
+    }
+  };
+
+  /** Re-query with or without the project indication as a filter. */
+  const applyIndicationFilter = async (narrow: boolean) => {
+    if (libraryBusy) return;
+    setNarrowToIndication(narrow);
+    setLibraryBusy(true);
+    try {
+      const page = await fetchEvidenceLibrary(
+        project.target_molecule_name,
+        narrow ? project.primary_indication : undefined,
+        PAGE_SIZE,
+        0
+      );
+      setLibrary(page);
+      setPapers(page.papers);
+    } catch (e) {
+      setLoadError(e instanceof Error ? e.message : 'Could not re-query PubMed.');
+    } finally {
+      setLibraryBusy(false);
+    }
+  };
+
+  /** Ask the backend to cache the molecule's entire bibliography. */
+  const pullEntireCorpus = async () => {
+    if (libraryBusy) return;
+    setLibraryBusy(true);
+    try {
+      await fetchEntireCorpus(project.target_molecule_name,
+        narrowToIndication ? project.primary_indication : undefined);
+      // The fetch runs in the background; poll until fetched_count stops rising.
+      const poll = setInterval(async () => {
+        try {
+          const page = await fetchEvidenceLibrary(
+            project.target_molecule_name,
+            narrowToIndication ? project.primary_indication : undefined, PAGE_SIZE, 0);
+          setLibrary(page);
+          setPapers(page.papers);
+          if (page.complete) {
+            clearInterval(poll);
+            setLibraryBusy(false);
+          }
+        } catch {
+          clearInterval(poll);
+          setLibraryBusy(false);
+        }
+      }, 5000);
+    } catch (e) {
+      setLoadError(e instanceof Error ? e.message : 'Could not start the corpus fetch.');
+      setLibraryBusy(false);
+    }
+  };
+
   const brandDisplayName = project.brand_working_name || `${project.target_molecule_name} Brand`;
+
+  // Curated rows carry hand-checked strategy text and quadrant coordinates;
+  // market rows carry measured sales and deliberately leave those blank. The
+  // two are rendered by different surfaces, so they are split once here rather
+  // than re-filtered at each use.
+  const curatedCompetitors = (competitors?.competitors ?? []).filter(
+    (c) => c.data_source !== 'secondary_market'
+  );
 
   return (
     <div className="min-h-screen bg-slate-50 dark:bg-slate-950 flex flex-col">
@@ -534,18 +630,52 @@ export default function ProjectWorkspacePage() {
                 <h1 className="text-2xl font-extrabold text-slate-900 dark:text-white mt-0.5">PubMed Clinical Evidence Matrix</h1>
                 <p className="text-xs text-slate-500 dark:text-slate-500 dark:text-slate-400 mt-1">Ranked by evidence strength (Systematic Review &gt; RCT &gt; Observational)</p>
               </div>
-              <div className="flex items-center space-x-2 text-xs">
+              {/* Two counts, never merged: what PubMed indexes vs what is loaded. */}
+              <div className="flex flex-wrap items-center gap-2 text-xs">
                 <span className="px-3 py-1.5 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-300 font-mono">
-                  {papers.length} Landmark Papers Ingested
+                  {(library?.total_available ?? papers.length).toLocaleString()} indexed in PubMed
                 </span>
+                <span className="px-3 py-1.5 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-300 font-mono">
+                  {papers.length.toLocaleString()} shown
+                </span>
+                {library && !library.complete && (
+                  <button
+                    type="button"
+                    onClick={pullEntireCorpus}
+                    disabled={libraryBusy}
+                    className="px-3 py-1.5 rounded-xl bg-brand-600 hover:bg-brand-500 disabled:opacity-60 text-white font-semibold transition"
+                  >
+                    {libraryBusy ? 'Fetching…' : 'Fetch entire corpus'}
+                  </button>
+                )}
+                {library?.complete && (
+                  <span className="px-3 py-1.5 rounded-xl bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-300 dark:border-emerald-800 text-emerald-800 dark:text-emerald-300 font-mono">
+                    complete corpus cached
+                  </span>
+                )}
+                <button
+                  type="button"
+                  onClick={() => applyIndicationFilter(!narrowToIndication)}
+                  disabled={libraryBusy}
+                  className={`px-3 py-1.5 rounded-xl border font-mono transition disabled:opacity-60 ${
+                    narrowToIndication
+                      ? 'bg-brand-600 border-brand-500 text-white'
+                      : 'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-300'
+                  }`}
+                  title={`Narrow the search to ${project.primary_indication}`}
+                >
+                  {narrowToIndication ? 'narrowed to indication' : 'whole molecule'}
+                </button>
               </div>
             </div>
 
             {/* Papers List */}
             <div className="space-y-4">
               {papers.length === 0 && (
-                <div className="p-6 rounded-2xl bg-amber-950/30 border border-amber-800 text-amber-200 text-sm">
-                  No PubMed evidence candidates were found for this molecule/indication. Do not create clinical claims until sources are added and reviewed.
+                <div className="p-6 rounded-2xl bg-amber-50 dark:bg-amber-950/30 border border-amber-400 dark:border-amber-800 text-amber-900 dark:text-amber-200 text-sm">
+                  PubMed returned no records for this molecule and indication. Try
+                  clearing the indication filter, or check the INN spelling — the
+                  search covers both title/abstract and MeSH terms.
                 </div>
               )}
               {papers.map((paper, idx) => (
@@ -582,14 +712,23 @@ export default function ProjectWorkspacePage() {
                   </h3>
 
                   <div className="text-xs text-slate-500 dark:text-slate-500 dark:text-slate-400">
-                    <span className="font-semibold text-slate-600 dark:text-slate-300">{paper.journal}</span> ({paper.publication_year}) | Authors: {paper.authors.slice(0, 4).join(', ')} et al.
+                    <span className="font-semibold text-slate-600 dark:text-slate-300">{paper.journal}</span>
+                    {' '}({paper.publication_year ? paper.publication_year : 'n.d.'})
+                    {paper.authors.length > 0 && (
+                      <> | {paper.authors.slice(0, 4).join(', ')}{paper.authors.length > 4 ? ' et al.' : ''}</>
+                    )}
                   </div>
 
                   {/* Primary Endpoint Results Banner */}
                   <div className="p-3.5 rounded-xl bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 grid grid-cols-1 md:grid-cols-3 gap-4 text-xs">
                     <div>
                       <span className="text-slate-500 dark:text-slate-500 text-[10px] block">Primary Outcome Finding</span>
-                      <span className="text-emerald-700 dark:text-emerald-400 font-bold">{paper.primary_endpoint_result}</span>
+                      {/* Endpoints are hand-checked, not machine-extracted. A PubMed
+                          record carries none, so this says where to look rather
+                          than rendering an empty value as if it were a result. */}
+                      <span className="text-emerald-700 dark:text-emerald-400 font-bold">
+                        {paper.primary_endpoint_result || 'Read the abstract below — endpoints are not machine-extracted'}
+                      </span>
                     </div>
                     {paper.hazard_ratio && (
                       <div>
@@ -605,11 +744,42 @@ export default function ProjectWorkspacePage() {
                     )}
                   </div>
 
+                  {paper.key_findings && (
+                    <details className="group">
+                      <summary className="cursor-pointer text-xs font-semibold text-teal-700 dark:text-teal-400 hover:underline select-none">
+                        Abstract
+                      </summary>
+                      <p className="mt-2 text-xs text-slate-600 dark:text-slate-300 leading-relaxed whitespace-pre-line max-h-72 overflow-y-auto pr-2">
+                        {paper.key_findings}
+                      </p>
+                    </details>
+                  )}
+
                   <div className="text-xs text-slate-600 dark:text-slate-300 leading-relaxed">
                     <strong className="text-slate-500 dark:text-slate-500 dark:text-slate-400">Claim Support Value:</strong> {paper.claim_support_potential}
                   </div>
                 </div>
               ))}
+
+              {/* Paging control. The corpus is cached server-side, so each press
+                  is a local read, not another round trip to NCBI. */}
+              {library && papers.length < library.total_available && (
+                <div className="flex flex-wrap items-center justify-center gap-3 py-4">
+                  <button
+                    type="button"
+                    onClick={loadMorePapers}
+                    disabled={libraryBusy}
+                    className="px-5 py-2.5 rounded-xl bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 text-sm font-semibold text-slate-700 dark:text-slate-200 hover:border-brand-500 disabled:opacity-60 transition"
+                  >
+                    {libraryBusy ? 'Loading…' : `Load ${Math.min(PAGE_SIZE, library.total_available - papers.length)} more`}
+                  </button>
+                  <span className="text-xs font-mono text-slate-500 dark:text-slate-400">
+                    {papers.length.toLocaleString()} of {library.total_available.toLocaleString()}
+                    {library.fetched_count < library.total_available &&
+                      ` · ${library.fetched_count.toLocaleString()} cached locally`}
+                  </span>
+                </div>
+              )}
             </div>
 
             {/* Claim Evidence Mapping Table */}
@@ -769,37 +939,100 @@ export default function ProjectWorkspacePage() {
 
             {/* 3-Agency Comparative Cards */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-              {[regulatory.us_fda, regulatory.india_cdsco, regulatory.eu_ema].map((agency, idx) => (
+              {[regulatory.us_fda, regulatory.india_cdsco, regulatory.eu_ema].map((agency, idx) => {
+                // The badge previously rendered emerald for every status, so
+                // "No machine-readable source connected" looked like an approval.
+                const sourced = /approved|marketed/i.test(agency.status);
+                const badge = sourced
+                  ? 'bg-emerald-50 dark:bg-emerald-950/40 text-emerald-800 dark:text-emerald-400 border-emerald-300 dark:border-emerald-800'
+                  : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 border-slate-300 dark:border-slate-700';
+                return (
                 <div key={idx} className="p-5 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 space-y-4 flex flex-col justify-between">
                   <div className="space-y-3">
-                    <div className="flex items-center justify-between">
+                    <div className="flex items-start justify-between gap-2">
                       <h3 className="text-base font-bold text-slate-900 dark:text-white">{agency.agency_name}</h3>
-                      <span className="px-2 py-0.5 rounded bg-emerald-950 text-emerald-700 dark:text-emerald-400 text-xs font-semibold border border-emerald-800">
+                      <span className={`px-2 py-0.5 rounded text-[10px] font-semibold border text-right ${badge}`}>
                         {agency.status}
                       </span>
                     </div>
 
-                    <div className="text-xs text-slate-500 dark:text-slate-500 dark:text-slate-400">
-                      <div>Innovator Brand: <strong className="text-slate-700 dark:text-slate-200">{agency.innovator_brand_name || 'N/A'}</strong></div>
-                      <div>Approved Year: <strong className="text-slate-700 dark:text-slate-200">{agency.approval_year || 'N/A'}</strong></div>
+                    <div className="text-xs text-slate-500 dark:text-slate-400 space-y-0.5">
+                      {agency.innovator_brand_name && (
+                        <div>Innovator brand: <strong className="text-slate-700 dark:text-slate-200">{agency.innovator_brand_name}</strong></div>
+                      )}
+                      {agency.approval_year && (
+                        <div>First approval: <strong className="text-slate-700 dark:text-slate-200">{agency.approval_year}</strong></div>
+                      )}
+                      {agency.application_numbers.length > 0 && (
+                        <div className="font-mono text-[10px] leading-relaxed">
+                          {agency.application_numbers.slice(0, 6).join(', ')}
+                          {agency.application_numbers.length > 6 && ` +${agency.application_numbers.length - 6} more`}
+                        </div>
+                      )}
                     </div>
 
-                    <div>
-                      <span className="text-xs font-semibold text-slate-500 dark:text-slate-500 dark:text-slate-400 block mb-1">Approved Indications</span>
-                      <ul className="list-disc list-inside text-xs text-slate-600 dark:text-slate-300 space-y-1">
-                        {agency.approved_indications.map((ind, iIdx) => (
-                          <li key={iIdx} className="leading-snug">{ind}</li>
-                        ))}
-                      </ul>
-                    </div>
+                    {agency.boxed_warnings.length > 0 && (
+                      <div className="p-2.5 rounded-lg bg-rose-50 dark:bg-rose-950/30 border border-rose-300 dark:border-rose-900">
+                        <span className="text-[10px] font-bold uppercase tracking-wider text-rose-800 dark:text-rose-300 block mb-1">
+                          Boxed warning
+                        </span>
+                        <ul className="list-disc list-inside text-[11px] text-rose-900 dark:text-rose-200 space-y-1">
+                          {agency.boxed_warnings.slice(0, 3).map((w, wIdx) => (
+                            <li key={wIdx} className="leading-snug">{w}</li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
+
+                    {agency.approved_indications.length > 0 && (
+                      <div>
+                        <span className="text-xs font-semibold text-slate-500 dark:text-slate-400 block mb-1">Approved indications</span>
+                        <ul className="list-disc list-inside text-xs text-slate-600 dark:text-slate-300 space-y-1">
+                          {agency.approved_indications.slice(0, 6).map((ind, iIdx) => (
+                            <li key={iIdx} className="leading-snug">{ind}</li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
+
+                    {(agency.warnings_and_precautions.length > 0 || agency.contraindications.length > 0) && (
+                      <div className="flex flex-wrap gap-1.5 text-[10px] font-mono">
+                        {agency.warnings_and_precautions.length > 0 && (
+                          <span className="px-2 py-0.5 rounded bg-amber-50 dark:bg-amber-950/30 text-amber-800 dark:text-amber-300 border border-amber-300 dark:border-amber-900">
+                            {agency.warnings_and_precautions.length} warnings
+                          </span>
+                        )}
+                        {agency.contraindications.length > 0 && (
+                          <span className="px-2 py-0.5 rounded bg-rose-50 dark:bg-rose-950/30 text-rose-800 dark:text-rose-300 border border-rose-300 dark:border-rose-900">
+                            {agency.contraindications.length} contraindications
+                          </span>
+                        )}
+                      </div>
+                    )}
                   </div>
 
-                  <div className="pt-3 border-t border-slate-200 dark:border-slate-800 text-[11px] text-slate-500 dark:text-slate-500 dark:text-slate-400">
-                    <span className="font-semibold text-slate-500 dark:text-slate-500">Dosing: </span>
-                    {agency.dosage_and_administration_summary}
+                  <div className="pt-3 border-t border-slate-200 dark:border-slate-800 text-[11px] text-slate-500 dark:text-slate-400 space-y-2">
+                    {agency.dosage_and_administration_summary && (
+                      <p className="leading-relaxed line-clamp-4">
+                        <span className="font-semibold">Dosing: </span>
+                        {agency.dosage_and_administration_summary}
+                      </p>
+                    )}
+                    {agency.source_spl_or_url && (
+                      <a
+                        href={agency.source_spl_or_url}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="inline-flex items-center gap-1 text-teal-700 dark:text-teal-400 hover:underline font-mono"
+                      >
+                        <span>{sourced ? 'Source label' : 'Check register'}</span>
+                        <ExternalLink className="w-3 h-3" />
+                      </a>
+                    )}
                   </div>
                 </div>
-              ))}
+                );
+              })}
             </div>
 
             {/* Fact vs AI Strategic Interpretation */}
@@ -934,21 +1167,34 @@ export default function ProjectWorkspacePage() {
               </div>
             </div>
 
-            {/* 2x2 Positioning Quadrant */}
+            {/* Measured market first: who is actually selling this molecule today.
+                Sourced sales facts outrank the strategic read that follows. */}
+            <MarketIntelligencePanel
+              summary={competitors.market_summary}
+              brands={competitors.competitors}
+              companies={competitors.company_leaderboard}
+              classRivals={competitors.class_rivals}
+              moleculeName={project.target_molecule_name}
+            />
+
+            {/* 2x2 Positioning Quadrant. Only curated rows carry the efficacy /
+                safety coordinates a quadrant needs — an audit extract measures
+                sales, not clinical positioning, so market rows are excluded
+                rather than plotted at a made-up origin. */}
             <PositioningMatrix
-              competitors={competitors.competitors}
+              competitors={curatedCompetitors}
               targetMolecule={project.target_molecule_name}
               targetBrand={brandDisplayName}
             />
 
-            {/* Competitor Matrix Cards */}
+            {/* Curated competitor cards: strategy, claims, and messaging */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
               {competitors.competitors.length === 0 && (
-                <div className="md:col-span-3 p-6 rounded-2xl bg-amber-950/30 border border-amber-800 text-amber-200 text-sm">
-                  No source-backed competitor set is available for this molecule/indication. Add verified competitor labels, claims, pricing, and market-share sources before positioning.
+                <div className="md:col-span-3 p-6 rounded-2xl bg-amber-50 dark:bg-amber-950/30 border border-amber-400 dark:border-amber-800 text-amber-900 dark:text-amber-200 text-sm">
+                  No source-backed competitor set is available for this molecule/indication. Upload a market extract under Secondary Data, or add verified competitor labels, claims, pricing, and market-share sources before positioning.
                 </div>
               )}
-              {competitors.competitors.map((comp, cIdx) => (
+              {curatedCompetitors.map((comp, cIdx) => (
                 <div key={cIdx} className="p-5 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 space-y-4 flex flex-col justify-between">
                   <div className="space-y-3">
                     <div className="flex items-center justify-between">

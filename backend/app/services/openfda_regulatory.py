@@ -1,0 +1,389 @@
+"""US FDA regulatory facts for a molecule, from openFDA.
+
+Separate from `data_sources/openfda_source.py` on purpose: that module builds
+`DrugRecord`s for the drug catalogue, keyed by product. This one answers a
+different question — "what is the regulatory position of this *molecule*" — and
+produces `RegulatoryAgencyInfo`: approval year, application numbers, innovator
+brand, indications, and the safety sections a label carries. Folding the two
+together would mean one of them returning a shape it does not mean.
+
+Everything here is a label or application fact published by the FDA. Nothing is
+inferred: a molecule with no FDA record returns no record, and a label section
+the SPL omits stays empty rather than being filled from a sibling product.
+"""
+from __future__ import annotations
+
+import asyncio
+import logging
+import re
+from typing import Any, Dict, List, Optional
+
+import httpx
+
+from ..config import get_settings
+from ..models.regulatory import RegulatoryAgencyInfo
+
+logger = logging.getLogger(__name__)
+
+LABEL_URL = "https://api.fda.gov/drug/label.json"
+DRUGSFDA_URL = "https://api.fda.gov/drug/drugsfda.json"
+NDC_URL = "https://api.fda.gov/drug/ndc.json"
+TIMEOUT = 15.0
+
+# Applications are ranked so the innovator, not a generic filer, names the brand.
+_APPLICATION_RANK = {"NDA": 0, "BLA": 1, "ANDA": 2}
+
+
+def _params(extra: Dict[str, Any]) -> Dict[str, Any]:
+    """Attach the API key when one is configured.
+
+    The key raises the daily request ceiling (1k -> 120k). It does not lift the
+    skip=25,000 paging cap and does not change what the API returns, so nothing
+    here depends on its presence.
+    """
+    key = get_settings().get("openfda_api_key")
+    return {**extra, **({"api_key": key} if key else {})}
+
+
+async def _get(client: httpx.AsyncClient, url: str, params: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+    try:
+        response = await client.get(url, params=_params(params))
+    except Exception:
+        logger.warning("openFDA request failed: %s", url, exc_info=True)
+        return None
+    if response.status_code == 404:
+        return None                      # openFDA's "no matches", not an error
+    if response.status_code != 200:
+        logger.warning("openFDA %s returned %s", url, response.status_code)
+        return None
+    try:
+        return response.json()
+    except ValueError:
+        return None
+
+
+def _clean_sections(values: Optional[List[str]], limit: int = 6) -> List[str]:
+    """Split SPL prose into readable bullets without rewriting it.
+
+    Label text is the regulated wording. It is trimmed and split on sentence
+    boundaries for display, never paraphrased.
+    """
+    out: List[str] = []
+    for block in values or []:
+        text = re.sub(r"\s+", " ", str(block)).strip()
+        if not text:
+            continue
+        text = _strip_heading(text)
+        for sentence in re.split(r"(?<=[.;])\s+(?=[A-Z(])", text):
+            sentence = sentence.strip()
+            if len(sentence) > 12:
+                out.append(sentence[:400])
+            if len(out) >= limit:
+                return out
+    return out
+
+
+# SPL bodies repeat their own section heading as the first words, often behind a
+# section number ("2 DOSAGE AND ADMINISTRATION Take orally..."). Left in, every
+# bullet opens with shouting boilerplate instead of the actual label text.
+_HEADINGS = (
+    "INDICATIONS AND USAGE", "DOSAGE AND ADMINISTRATION", "CONTRAINDICATIONS",
+    "WARNINGS AND PRECAUTIONS", "WARNINGS AND CAUTIONS", "WARNINGS",
+    "BOXED WARNING", "WARNING", "ADVERSE REACTIONS",
+    "MECHANISM OF ACTION", "PHARMACOKINETICS", "PHARMACODYNAMICS",
+    "DRUG INTERACTIONS", "DOSAGE FORMS AND STRENGTHS", "CLINICAL PHARMACOLOGY",
+)
+
+
+def _strip_heading(text: str) -> str:
+    """Remove a leading section number and repeated SPL heading."""
+    cleaned = re.sub(r"^\d+(\.\d+)*\s+", "", text).lstrip()
+    upper = cleaned.upper()
+    for heading in _HEADINGS:
+        if upper.startswith(heading):
+            cleaned = cleaned[len(heading):].lstrip(" :.-\u2014")
+            break
+    return cleaned
+
+
+def _first(values: Optional[List[str]], limit: int = 900) -> str:
+    for block in values or []:
+        text = _strip_heading(re.sub(r"\s+", " ", str(block)).strip())
+        if text:
+            return text[:limit]
+    return ""
+
+
+async def _fetch_label(client: httpx.AsyncClient, molecule: str) -> Optional[Dict[str, Any]]:
+    """Most recent SPL naming this molecule as an active ingredient.
+
+    Generic-name search first: it matches the molecule regardless of which brand
+    or labeler published the SPL. Substance name is the fallback for biologics,
+    where the generic field is often the trade name.
+    """
+    for field in ("openfda.generic_name", "openfda.substance_name"):
+        payload = await _get(client, LABEL_URL, {
+            "search": f'{field}:"{molecule}"',
+            "limit": 1,
+            "sort": "effective_time:desc",
+        })
+        results = (payload or {}).get("results") or []
+        if results:
+            return results[0]
+    return None
+
+
+async def _fetch_applications(client: httpx.AsyncClient, molecule: str) -> List[Dict[str, Any]]:
+    payload = await _get(client, DRUGSFDA_URL, {
+        "search": f'products.active_ingredients.name:"{molecule}"',
+        "limit": 100,
+    })
+    return (payload or {}).get("results") or []
+
+
+def _earliest_approval(applications: List[Dict[str, Any]]) -> Optional[int]:
+    """First US approval year across all applications for the molecule."""
+    years: List[int] = []
+    for application in applications:
+        for submission in application.get("submissions") or []:
+            if (submission.get("submission_status") or "").upper() != "AP":
+                continue
+            date = str(submission.get("submission_status_date") or "")
+            if len(date) >= 4 and date[:4].isdigit():
+                years.append(int(date[:4]))
+    return min(years) if years else None
+
+
+def _application_approval_year(application: Dict[str, Any]) -> int:
+    years = [
+        int(str(s.get("submission_status_date"))[:4])
+        for s in application.get("submissions") or []
+        if (s.get("submission_status") or "").upper() == "AP"
+        and str(s.get("submission_status_date") or "")[:4].isdigit()
+    ]
+    return min(years) if years else 9999
+
+
+def _innovator(applications: List[Dict[str, Any]], molecule: str) -> tuple:
+    """Innovator brand and sponsor for the molecule.
+
+    Ranked by application type, then by earliest approval. Without the date
+    term a later fixed-dose combination built on the molecule can outrank the
+    originator — rosuvastatin returned "Roszet" (rosuvastatin + ezetimibe, 2021)
+    instead of "Crestor" (2003).
+
+    Single-ingredient products are preferred for the same reason: the innovator
+    brand of a molecule is the product of that molecule alone.
+    """
+    def rank(application: Dict[str, Any]) -> tuple:
+        number = (application.get("application_number") or "").upper()
+        prefix = number[:3]
+        products = application.get("products") or []
+        single = any(len(p.get("active_ingredients") or []) == 1 for p in products)
+        return (_APPLICATION_RANK.get(prefix, 3), 0 if single else 1,
+                _application_approval_year(application))
+
+    for application in sorted(applications, key=rank):
+        products = application.get("products") or []
+        # Prefer a single-ingredient product within the winning application.
+        for product in sorted(products, key=lambda p: len(p.get("active_ingredients") or [])):
+            brand = (product.get("brand_name") or "").strip()
+            if brand:
+                return brand.title(), (application.get("sponsor_name") or "").title()
+    return None, None
+
+
+def _market_status(applications: List[Dict[str, Any]]) -> str:
+    """Whether the molecule is single-source or genericised in the US."""
+    prefixes = {(a.get("application_number") or "")[:3].upper() for a in applications}
+    anda_count = sum(1 for a in applications
+                     if (a.get("application_number") or "").upper().startswith("ANDA"))
+    if anda_count >= 1:
+        return f"Genericised / multi-source — {anda_count} ANDA(s) on file with the FDA"
+    if prefixes & {"NDA", "BLA"}:
+        return "Innovator exclusivity — no ANDA on file with the FDA"
+    return ""
+
+
+async def fetch_us_fda_profile(molecule: str) -> Optional[Dict[str, Any]]:
+    """Regulatory position of a molecule with the US FDA, or None if unlisted."""
+    async with httpx.AsyncClient(timeout=TIMEOUT) as client:
+        label, applications = await asyncio.gather(
+            _fetch_label(client, molecule),
+            _fetch_applications(client, molecule),
+        )
+
+    if not label and not applications:
+        return None
+
+    label = label or {}
+    openfda = label.get("openfda") or {}
+    brand, sponsor = _innovator(applications, molecule)
+    if not brand:
+        brand = (openfda.get("brand_name") or [None])[0]
+
+    application_numbers = sorted({
+        str(a.get("application_number")) for a in applications
+        if a.get("application_number")
+    })[:12]
+    if not application_numbers:
+        application_numbers = list(openfda.get("application_number") or [])[:12]
+
+    approval_year = _earliest_approval(applications)
+    spl_id = (openfda.get("spl_set_id") or [None])[0]
+
+    info = RegulatoryAgencyInfo(
+        agency_name="US FDA",
+        status="Approved — listed in FDA drug applications" if applications
+               else "Marketed — FDA structured product label on file",
+        approval_year=approval_year,
+        innovator_brand_name=brand,
+        application_numbers=application_numbers,
+        approved_indications=_clean_sections(label.get("indications_and_usage"), limit=8),
+        dosage_and_administration_summary=_first(label.get("dosage_and_administration")),
+        boxed_warnings=_clean_sections(label.get("boxed_warning"), limit=4),
+        warnings_and_precautions=_clean_sections(
+            label.get("warnings_and_cautions") or label.get("warnings"), limit=8),
+        contraindications=_clean_sections(label.get("contraindications"), limit=6),
+        source_spl_or_url=(f"https://dailymed.nlm.nih.gov/dailymed/drugInfo.cfm?setid={spl_id}"
+                           if spl_id else "https://dailymed.nlm.nih.gov"),
+    )
+    return {
+        "info": info,
+        "sponsor": sponsor,
+        "application_count": len(applications),
+        "market_status": _market_status(applications),
+        "manufacturers": list(openfda.get("manufacturer_name") or [])[:5],
+        "route": list(openfda.get("route") or [])[:4],
+        "pharm_class": list(openfda.get("pharm_class_epc") or [])[:4],
+    }
+
+
+# ---------------------------------------------------------------------------
+# Clinical profile
+#
+# The molecule profile module reads PubChem, which is a *chemical* registry: it
+# knows formula, weight, and SMILES, and nothing about pharmacology. Every
+# clinical field therefore rendered "Not verified" for any molecule without a
+# hand-written entry. The FDA label carries exactly those fields, so they are
+# read from there instead.
+# ---------------------------------------------------------------------------
+
+# Label section -> profile field. Kept as data so the mapping is inspectable
+# rather than buried in twenty attribute assignments.
+_PK_SECTIONS = {
+    "absorption": ("absorption",),
+    "distribution": ("distribution",),
+    "metabolism": ("metabolism",),
+    "elimination": ("elimination", "excretion"),
+}
+
+_CYP_RE = re.compile(r"CYP\s?([1-4][A-C]\d{1,2})", re.IGNORECASE)
+_HALFLIFE_RE = re.compile(
+    r"([\d.]+\s*(?:to|-|–)?\s*[\d.]*\s*(?:hours?|hrs?|days?|minutes?))[^.]{0,60}half[- ]?life"
+    r"|half[- ]?life[^.]{0,80}?([\d.]+\s*(?:to|-|–)?\s*[\d.]*\s*(?:hours?|hrs?|days?|minutes?))",
+    re.IGNORECASE)
+_PROTEIN_RE = re.compile(r"(\d{1,3}(?:\.\d+)?\s*%)[^.]{0,60}bound to (?:human )?plasma protein"
+                         r"|protein[- ]?binding[^.]{0,60}?(\d{1,3}(?:\.\d+)?\s*%)", re.IGNORECASE)
+
+
+def _sentence_with(text: str, keywords: tuple) -> str:
+    """First sentence mentioning any keyword. Quoted, never paraphrased."""
+    for sentence in re.split(r"(?<=[.])\s+", text or ""):
+        lowered = sentence.lower()
+        if any(word in lowered for word in keywords) and len(sentence) > 25:
+            return sentence.strip()[:400]
+    return ""
+
+
+def _match(pattern: re.Pattern, text: str) -> str:
+    found = pattern.search(text or "")
+    if not found:
+        return ""
+    return next((g for g in found.groups() if g), "").strip()
+
+
+async def _fetch_pharm_class(client: httpx.AsyncClient, molecule: str) -> List[str]:
+    """Established pharmacologic class, from the NDC directory.
+
+    Read from NDC rather than the label because the label's `pharm_class_epc`
+    annotation is present on some SPLs and absent from others — pantoprazole's
+    most recent label carries none, so a label-first lookup returned nothing for
+    a molecule whose class is perfectly well known. NDC lists it per product.
+    """
+    payload = await _get(client, NDC_URL, {
+        "search": f'active_ingredients.name:"{molecule}"',
+        "count": "pharm_class.exact",
+    })
+    classes = [str(r.get("term")) for r in (payload or {}).get("results", []) if r.get("term")]
+    # EPC is the established class; MoA and CS are secondary descriptors.
+    epc = [c for c in classes if c.endswith("[EPC]")]
+    return (epc or classes)[:3]
+
+
+async def _fetch_dosage_forms(client: httpx.AsyncClient, molecule: str) -> List[str]:
+    """Marketed dosage forms, from the NDC directory rather than the label.
+
+    `dosage_form` is an NDC listing field; it does not exist on the label
+    endpoint, which is why reading it off the label returned nothing.
+    """
+    payload = await _get(client, NDC_URL, {
+        "search": f'active_ingredients.name:"{molecule}"',
+        "count": "dosage_form.exact",
+    })
+    return [str(r.get("term")).title() for r in (payload or {}).get("results", [])[:8]
+            if r.get("term")]
+
+
+async def fetch_molecule_clinical_profile(molecule: str) -> Optional[Dict[str, Any]]:
+    """Clinical fields for a molecule, read from its FDA label.
+
+    Returns only what the label actually states. A section the SPL omits comes
+    back empty, so the caller can leave the field alone rather than filling it
+    with text borrowed from a different product.
+    """
+    async with httpx.AsyncClient(timeout=TIMEOUT) as client:
+        label, pharm_classes, dosage_forms = await asyncio.gather(
+            _fetch_label(client, molecule),
+            _fetch_pharm_class(client, molecule),
+            _fetch_dosage_forms(client, molecule),
+        )
+    if not label:
+        return None
+
+    openfda = label.get("openfda") or {}
+    pharmacology = " ".join(
+        re.sub(r"\s+", " ", str(block))
+        for block in (label.get("clinical_pharmacology") or []) +
+                     (label.get("pharmacokinetics") or [])
+    )
+
+    pharmacokinetics = {
+        field: _sentence_with(pharmacology, keywords)
+        for field, keywords in _PK_SECTIONS.items()
+    }
+    pharmacokinetics["half_life"] = _match(_HALFLIFE_RE, pharmacology)
+    pharmacokinetics["protein_binding"] = _match(_PROTEIN_RE, pharmacology)
+    pharmacokinetics["cyp_pathways"] = sorted({
+        f"CYP{m.group(1).upper()}" for m in _CYP_RE.finditer(pharmacology)
+    })[:8]
+
+    return {
+        "pharmacological_class": "; ".join(
+            pharm_classes or openfda.get("pharm_class_epc") or openfda.get("pharm_class_moa") or []),
+        "mechanism_of_action": _first(label.get("mechanism_of_action"), 700)
+                               or _sentence_with(pharmacology, ("mechanism", "inhibit", "agonist", "antagonist")),
+        "pharmacodynamics": _first(label.get("pharmacodynamics"), 700),
+        "pharmacokinetics": pharmacokinetics,
+        "approved_indications": _clean_sections(label.get("indications_and_usage"), limit=8),
+        "dosage_forms": dosage_forms or _clean_sections(
+            label.get("dosage_forms_and_strengths"), limit=6),
+        "routes_of_administration": [r.title() for r in (openfda.get("route") or [])][:6],
+        "standard_dosages": _clean_sections(label.get("dosage_and_administration"), limit=6),
+        "contraindications": _clean_sections(label.get("contraindications"), limit=6),
+        "black_box_warnings": _clean_sections(label.get("boxed_warning"), limit=4),
+        "drug_interactions": _clean_sections(label.get("drug_interactions"), limit=8),
+        "adverse_effects": _clean_sections(label.get("adverse_reactions"), limit=10),
+        "source_url": (f"https://dailymed.nlm.nih.gov/dailymed/drugInfo.cfm?setid="
+                       f"{(openfda.get('spl_set_id') or [''])[0]}"),
+    }

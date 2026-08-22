@@ -1,6 +1,8 @@
 import logging
 from typing import Dict, Any, List, Optional
+
 from ..models.regulatory import RegulatoryIntelligence, RegulatoryAgencyInfo
+from .openfda_regulatory import fetch_us_fda_profile
 
 logger = logging.getLogger(__name__)
 
@@ -301,65 +303,168 @@ CURATED_REGULATORY: Dict[str, Dict[str, Any]] = {
     }
 }
 
-async def fetch_regulatory_intelligence(molecule_name: str) -> RegulatoryIntelligence:
-    """Fetch structured regulatory label intelligence across US FDA, CDSCO, and EMA.
+async def _india_from_market_data(molecule_name: str) -> Optional[RegulatoryAgencyInfo]:
+    """India status inferred from the team's own market extract.
 
-    Unknown molecules must not be represented as approved. Until a reliable
-    parser is added for each agency, return an explicit not-verified dossier.
+    CDSCO publishes no machine-readable approvals API, so India used to render
+    as "Not verified" for every molecule. But a syndicated audit extract is
+    direct evidence of the Indian market: a molecule with hundreds of brands and
+    a measured turnover is unambiguously marketed here, and that is a sourced
+    fact, not an inference about approval status.
+
+    Stated precisely for that reason — "marketed, N brands recorded in <file>" —
+    rather than "approved", which only CDSCO can say.
+    """
+    try:
+        from . import market_data_service as market
+        overview = market.brand_competitors(molecule_name, limit=5)
+        # Company count must come from the full leaderboard, not from the five
+        # brands fetched for display — otherwise 573 brands report 3 companies.
+        companies = market.company_leaderboard(molecule_name, limit=1000)
+    except Exception:
+        logger.warning("Market lookup failed for India status", exc_info=True)
+        return None
+
+    brands = overview.get("brands") or []
+    if not brands:
+        return None
+    period = overview.get("period") or "the loaded period"
+    leader = brands[0]
+    return RegulatoryAgencyInfo(
+        agency_name="CDSCO (India)",
+        status=f"Marketed in India — {overview['total_brands']} brand(s) recorded",
+        approval_year=None,
+        innovator_brand_name=leader.get("brand"),
+        application_numbers=[],
+        approved_indications=[],
+        dosage_and_administration_summary=(
+            f"{overview['total_brands']} brand(s) from {len(companies)} company(ies) "
+            f"recorded in the loaded market extract for {period}, turning over "
+            f"{overview['market_size']} INR Cr. Market presence is measured; the "
+            f"CDSCO-approved indication and schedule still require register "
+            f"verification (see the India / CDSCO module)."
+        ),
+        boxed_warnings=[],
+        warnings_and_precautions=[],
+        contraindications=[],
+        source_spl_or_url="https://cdsco.gov.in/opencms/opencms/en/Approval_new/Approved-New-Drugs/",
+    )
+
+
+def _unavailable(agency: str, url: str, reason: str) -> RegulatoryAgencyInfo:
+    """Explicit, actionable empty state for an agency with no machine source.
+
+    Says what is missing and where to get it, instead of the bare "Not verified"
+    that gave a reader nothing to act on. It still does not assert a status,
+    because asserting one without a source is the failure this module exists to
+    prevent.
+    """
+    return RegulatoryAgencyInfo(
+        agency_name=agency,
+        status="No machine-readable source connected",
+        approval_year=None,
+        innovator_brand_name=None,
+        application_numbers=[],
+        approved_indications=[],
+        dosage_and_administration_summary=reason,
+        boxed_warnings=[],
+        warnings_and_precautions=[],
+        contraindications=[],
+        source_spl_or_url=url,
+    )
+
+
+async def fetch_regulatory_intelligence(molecule_name: str) -> RegulatoryIntelligence:
+    """Regulatory dossier across US FDA, CDSCO, and EMA.
+
+    Three layers, in order of authority:
+
+    1. **Curated** — hand-checked dossiers for the molecules someone has
+       researched in full.
+    2. **openFDA** — live label and application facts for the US. This covers
+       essentially every molecule marketed in the States, which is why the US
+       block is rarely empty now.
+    3. **The team's own market extract** — direct evidence of Indian market
+       presence, where no CDSCO API exists.
+
+    An agency with no connected source says exactly that and links the register
+    to check. It never reports a status it cannot source.
     """
     clean_name = molecule_name.strip().lower()
-    
+
     if clean_name in CURATED_REGULATORY:
         return RegulatoryIntelligence(**CURATED_REGULATORY[clean_name])
-    
-    # No verified regulatory dossier found.
+
+    profile = None
+    try:
+        profile = await fetch_us_fda_profile(molecule_name)
+    except Exception:
+        logger.warning("openFDA regulatory lookup failed for %s", molecule_name, exc_info=True)
+
+    india = await _india_from_market_data(molecule_name)
+
+    if profile:
+        us = profile["info"]
+        interpretation = [
+            f"FDA record found: {profile['application_count']} application(s) on file"
+            + (f", first approved {us.approval_year}." if us.approval_year else "."),
+        ]
+        if profile["market_status"]:
+            interpretation.append(profile["market_status"] + ".")
+        if profile["pharm_class"]:
+            interpretation.append("FDA established pharmacologic class: "
+                                  + "; ".join(profile["pharm_class"]) + ".")
+        interpretation.append(
+            "Label text above is quoted from the FDA structured product label. "
+            "Verify against the current SPL and the local approved label before "
+            "any promotional use."
+        )
+        verified_claims = [
+            f"US innovator brand: {us.innovator_brand_name}" if us.innovator_brand_name else "",
+            f"First US approval: {us.approval_year}" if us.approval_year else "",
+            f"FDA application numbers: {', '.join(us.application_numbers[:6])}"
+            if us.application_numbers else "",
+        ]
+        generic_status = profile["market_status"] or "Status not determinable from FDA applications"
+    else:
+        us = _unavailable(
+            "US FDA",
+            "https://dailymed.nlm.nih.gov",
+            "No openFDA label or application record matched this molecule. It may be "
+            "investigational, non-US, or listed under a different INN spelling. "
+            "Search DailyMed directly to confirm.",
+        )
+        interpretation = [
+            "No FDA record matched this molecule name.",
+            "Do not make regulatory, safety, efficacy, or promotional claims until a "
+            "label has been reviewed.",
+        ]
+        verified_claims = []
+        generic_status = "Not determinable — no FDA application record matched"
+
     return RegulatoryIntelligence(
         generic_name=molecule_name.title(),
-        us_fda=RegulatoryAgencyInfo(
-            agency_name="US FDA",
-            status="Not verified",
-            approval_year=None,
-            innovator_brand_name=None,
-            application_numbers=[],
-            approved_indications=[],
-            dosage_and_administration_summary="No verified FDA label data available in this application.",
-            boxed_warnings=[],
-            warnings_and_precautions=[],
-            contraindications=[],
-            source_spl_or_url="https://dailymed.nlm.nih.gov"
+        us_fda=us,
+        india_cdsco=india or _unavailable(
+            "CDSCO (India)",
+            "https://cdsco.gov.in/opencms/opencms/en/Approval_new/Approved-New-Drugs/",
+            "CDSCO publishes no machine-readable approvals API. Load an Indian market "
+            "extract under Secondary Data to establish market presence, and check the "
+            "CDSCO approved-new-drugs register for the approved indication and schedule.",
         ),
-        india_cdsco=RegulatoryAgencyInfo(
-            agency_name="CDSCO (India)",
-            status="Not verified",
-            approval_year=None,
-            innovator_brand_name=None,
-            application_numbers=[],
-            approved_indications=[],
-            dosage_and_administration_summary="No verified CDSCO label data available in this application.",
-            boxed_warnings=[],
-            warnings_and_precautions=[],
-            contraindications=[],
-            source_spl_or_url="https://cdsco.gov.in"
+        eu_ema=_unavailable(
+            "EMA (European Union)",
+            "https://www.ema.europa.eu/en/medicines",
+            "No EMA source is connected. Check the EMA medicines register for the EPAR "
+            "and the EU summary of product characteristics.",
         ),
-        eu_ema=RegulatoryAgencyInfo(
-            agency_name="EMA (European Union)",
-            status="Not verified",
-            approval_year=None,
-            innovator_brand_name=None,
-            application_numbers=[],
-            approved_indications=[],
-            dosage_and_administration_summary="No verified EMA label data available in this application.",
-            boxed_warnings=[],
-            warnings_and_precautions=[],
-            contraindications=[],
-            source_spl_or_url="https://www.ema.europa.eu"
-        ),
-        generic_vs_innovator_status="Not verified",
+        generic_vs_innovator_status=generic_status,
         patent_expiry_timeline=None,
-        key_label_claims_verified=[],
-        ai_strategic_interpretation=[
-            "Regulatory status could not be verified from the curated dataset.",
-            "Do not use regulatory, safety, efficacy, or promotional claims until label review is completed."
-        ],
-        compliance_fair_balance_notes="MLR review required. No external claim should be made until approved labeling and jurisdiction-specific requirements are verified."
+        key_label_claims_verified=[c for c in verified_claims if c],
+        ai_strategic_interpretation=interpretation,
+        compliance_fair_balance_notes=(
+            "MLR review required. Label text shown here is quoted from the source "
+            "regulator's published label; it is not a promotional claim and has not "
+            "been reviewed for fair balance in any market."
+        ),
     )

@@ -136,8 +136,11 @@ export default function MonographPrintPage() {
           <div className="text-xs text-slate-500 dark:text-slate-500 pt-1">
             Indication: {project.primary_indication} | Therapy Area: {project.therapy_area} | Market: {project.target_geography}
           </div>
-          <div className="inline-block px-3 py-1 bg-emerald-50 text-emerald-800 text-[10px] font-mono font-bold rounded border border-emerald-300 mt-2">
-            MLR Compliance Status: 100% Citation Grounded & Verified
+          {/* Status must reflect the plan, not assert clearance. Nothing in this
+              application can grant MLR signoff, so this reads "review required"
+              until a human records the review outside the tool. */}
+          <div className="inline-block px-3 py-1 bg-amber-50 text-amber-900 text-[10px] font-mono font-bold rounded border border-amber-400 mt-2">
+            MLR Status: Review Required — internal draft, not approved for external use
           </div>
         </div>
 
@@ -294,7 +297,7 @@ export default function MonographPrintPage() {
             In accordance with FDA OPDP and CDSCO promotion guidelines, all promotional claims must present fair balance safety disclosures with equal prominence.
           </div>
           <div className="text-right font-mono font-bold text-slate-700">
-            Pharma BrandPlan AI — Generated Monograph System
+            Molecule to Market AI — Generated Monograph System
           </div>
         </footer>
       </main>

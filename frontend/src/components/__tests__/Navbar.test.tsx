@@ -5,7 +5,7 @@ import Navbar from '../Navbar';
 describe('Navbar', () => {
   it('renders brand name and projects link', () => {
     render(<Navbar />);
-    expect(screen.getByText(/Pharma BrandPlan AI/i)).toBeInTheDocument();
+    expect(screen.getByText(/Molecule to Market AI/i)).toBeInTheDocument();
     expect(screen.getByText(/Projects Hub/i)).toBeInTheDocument();
   });
 

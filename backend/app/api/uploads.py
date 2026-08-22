@@ -15,9 +15,11 @@ import uuid
 from datetime import datetime
 from typing import List, Optional
 
-from fastapi import APIRouter, File, Form, HTTPException, UploadFile
+from fastapi import APIRouter, BackgroundTasks, File, Form, HTTPException, UploadFile
 from fastapi.responses import FileResponse
 from pydantic import BaseModel
+
+from ..services import market_data_service as market
 
 logger = logging.getLogger(__name__)
 
@@ -49,6 +51,9 @@ class UploadedFile(BaseModel):
     content_type: Optional[str] = None
     uploaded_at: str
     note: Optional[str] = None
+    # Set when the file was recognised as a market extract and queued for
+    # ingestion. The dataset appears under /api/market/datasets once parsed.
+    market_ingest: Optional[str] = None
 
 
 def _project_dir(project_id: str) -> str:
@@ -76,8 +81,34 @@ def _meta_path(directory: str, file_id: str) -> str:
     return os.path.join(directory, f"{file_id}.meta.json")
 
 
+# Extensions worth even testing as a market extract. A PDF or image never is.
+_INGESTABLE = {".xlsx", ".xlsm", ".xls", ".csv", ".tsv", ".txt"}
+
+
+def _ingest_in_background(path: str, filename: str, project_id: str, file_id: str) -> None:
+    """Parse an uploaded extract into the market tables.
+
+    Runs after the response is sent: a full base extract takes tens of seconds,
+    and blocking the upload on it would time the browser out. Failure is logged
+    and left non-fatal — the file is still stored and downloadable, it simply
+    does not power the market panels.
+    """
+    try:
+        summary = market.ingest_market_file(
+            path,
+            original_filename=filename,
+            source_label=f"Uploaded — {filename}",
+            project_id=project_id,
+            upload_file_id=file_id,
+        )
+        logger.info("Auto-ingested %s: %s rows", filename, summary.get("rows_ingested"))
+    except Exception:
+        logger.exception("Auto-ingest failed for %s; file kept as a plain attachment", filename)
+
+
 @router.post("", response_model=UploadedFile)
 async def upload_secondary_data(
+    background: BackgroundTasks,
     project_id: str = Form(..., description="Project the file belongs to"),
     note: Optional[str] = Form(None, description="What this file contains"),
     file: UploadFile = File(...),
@@ -136,6 +167,13 @@ async def upload_secondary_data(
         uploaded_at=datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
         note=(note or "").strip()[:500] or None,
     )
+    # A spreadsheet that carries molecule/brand/value columns is market data,
+    # not just an attachment — ingest it so the competitor and market panels
+    # pick it up without the user having to do anything else.
+    if extension in _INGESTABLE and market.looks_like_market_extract(destination):
+        record.market_ingest = "queued"
+        background.add_task(_ingest_in_background, destination, original, project_id, file_id)
+
     with open(_meta_path(directory, file_id), "w") as handle:
         json.dump(record.model_dump(), handle)
 

@@ -4,7 +4,7 @@ import MLRComplianceBanner from '../components/MLRComplianceBanner';
 import { ThemeProvider } from '../components/ThemeProvider';
 
 export const metadata: Metadata = {
-  title: 'Pharma BrandPlan AI — Molecule to Commercial Strategy',
+  title: 'Molecule to Market AI — Molecule to Commercial Strategy',
   description: 'Enterprise pharmaceutical brand planning, clinical evidence synthesis, and commercial launch engine.',
 };
 
@@ -48,7 +48,7 @@ export default function RootLayout({
           <footer className="bg-slate-50 dark:bg-slate-950 border-t border-slate-200 dark:border-slate-800/80 py-6 px-6 text-center text-xs text-slate-500 dark:text-slate-500 dark:text-slate-500">
             <div className="max-w-7xl mx-auto flex flex-wrap items-center justify-between gap-4">
               <div>
-                <span className="font-semibold text-slate-600 dark:text-slate-400">Pharma BrandPlan AI</span> — Evidence-Grounded Pharma Commercialization Engine
+                <span className="font-semibold text-slate-600 dark:text-slate-400">Molecule to Market AI</span> — Evidence-Grounded Pharma Commercialization Engine
               </div>
               <div>
                 Built for Brand Managers, Medical Affairs &amp; Launch Teams | Review-Required Draft Outputs

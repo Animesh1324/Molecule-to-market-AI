@@ -37,4 +37,12 @@ def get_settings() -> dict:
         "ai_enabled": bool(anthropic_key) and os.getenv("AI_DRAFTING", "on").strip().lower() not in ("off", "0", "false"),
         "claude_model": os.getenv("CLAUDE_MODEL", "claude-opus-5").strip(),
         "claude_effort": os.getenv("CLAUDE_EFFORT", "high").strip().lower(),
+        # openFDA works without a key; the key only raises the request ceiling
+        # (1,000/day -> 120,000/day). It does NOT lift the skip=25,000 paging
+        # cap, so a key alone never makes a query-based fetch complete —
+        # whole-corpus loading still comes from the bulk partitions.
+        "openfda_api_key": os.getenv("OPENFDA_API_KEY", "").strip(),
+        # NCBI E-utilities: 3 requests/second anonymous, 10 with a free key.
+        # Only affects how fast the literature loads, never how much of it.
+        "ncbi_api_key": os.getenv("NCBI_API_KEY", "").strip(),
     }

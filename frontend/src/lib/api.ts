@@ -18,7 +18,9 @@ import {
   CDSCOIntelligence,
   DrugSearchResult,
   DrugComparison,
-  PMTAnalysis
+  PMTAnalysis,
+  MarketDataset,
+  EvidenceLibrary
 } from './types';
 
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE || 'http://localhost:8000';
@@ -246,6 +248,70 @@ export async function fetchMoleculeLifecycle(molecule: string): Promise<Molecule
     { headers: authHeaders() }
   );
   if (!res.ok) throw await apiError(res, 'Failed to fetch molecule lifecycle');
+  return res.json();
+}
+
+/** One page of the molecule's PubMed literature, with the true corpus size. */
+export async function fetchEvidenceLibrary(
+  molecule: string,
+  indication?: string,
+  limit = 100,
+  offset = 0,
+  refresh = false
+): Promise<EvidenceLibrary> {
+  const q = new URLSearchParams({
+    molecule,
+    limit: String(limit),
+    offset: String(offset),
+  });
+  if (indication) q.set('indication', indication);
+  if (refresh) q.set('refresh', 'true');
+  const res = await fetch(`${API_BASE}/api/evidence/library?${q.toString()}`, {
+    cache: 'no-store',
+    headers: authHeaders(),
+  });
+  if (!res.ok) throw await apiError(res, 'Failed to fetch evidence library');
+  return res.json();
+}
+
+/** Kick off a background pull of the molecule's entire PubMed bibliography. */
+export async function fetchEntireCorpus(molecule: string, indication?: string) {
+  const q = new URLSearchParams({ molecule });
+  if (indication) q.set('indication', indication);
+  const res = await fetch(`${API_BASE}/api/evidence/library/fetch-all?${q.toString()}`, {
+    method: 'POST',
+    headers: authHeaders(),
+  });
+  if (!res.ok) throw await apiError(res, 'Failed to start corpus fetch');
+  return res.json();
+}
+
+/** Every secondary-data extract ingested into the market tables. */
+export async function fetchMarketDatasets(): Promise<MarketDataset[]> {
+  const res = await fetch(`${API_BASE}/api/market/datasets`, {
+    cache: 'no-store',
+    headers: authHeaders(),
+  });
+  if (!res.ok) throw await apiError(res, 'Failed to list market datasets');
+  return res.json();
+}
+
+/** Free-text lookup across every ingested extract (brand, molecule, company). */
+export async function searchMarket(query: string, limit = 30) {
+  const res = await fetch(
+    `${API_BASE}/api/market/search?q=${encodeURIComponent(query)}&limit=${limit}`,
+    { headers: authHeaders() }
+  );
+  if (!res.ok) throw await apiError(res, 'Failed to search market data');
+  return res.json();
+}
+
+export async function deleteMarketDataset(datasetId: string) {
+  const res = await fetch(`${API_BASE}/api/market/datasets/${encodeURIComponent(datasetId)}`, {
+    method: 'DELETE',
+    headers: authHeaders(),
+  });
+  if (!res.ok) throw await apiError(res, 'Failed to remove market dataset');
   return res.json();
 }
 

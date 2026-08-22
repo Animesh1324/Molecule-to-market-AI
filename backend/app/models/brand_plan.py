@@ -50,7 +50,10 @@ class CompleteBrandPlan(BaseModel):
     sections: List[BrandPlanSection] = []
     monthly_action_plan: List[MonthlyTacticalMilestone] = []
     kpi_scorecard: List[KPIMetric] = []
-    mlr_compliance_signoff_ready: bool = True
+    # Never defaults true. A plan is signoff-ready only when a human reviewer
+    # has cleared it, and nothing in this application can make that assertion —
+    # so an omitted field must mean "not ready", not "ready".
+    mlr_compliance_signoff_ready: bool = False
     last_updated: str
 
     # Drafting provenance. `ai_drafted` marks text a model wrote rather than the

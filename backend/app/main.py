@@ -10,6 +10,7 @@ from .api import (
     intelligence,
     lifecycle,
     competitors,
+    market,
     drugs,
     creative_assets,
     evidence,
@@ -37,7 +38,7 @@ logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s %(levelname)s %(name)s %(message)s",
 )
-logger = logging.getLogger("pharma_brandplan")
+logger = logging.getLogger("molecule_to_market")
 settings = get_settings()
 
 
@@ -61,7 +62,7 @@ async def lifespan(app: FastAPI):
 _is_production = settings["app_env"] == "production"
 
 app = FastAPI(
-    title="Pharma BrandPlan AI — Core API Engine",
+    title="Molecule to Market AI — Core API Engine",
     description="Enterprise pharmaceutical brand planning, clinical evidence synthesis, and commercialization platform.",
     version="1.0.0",
     lifespan=lifespan,
@@ -113,12 +114,13 @@ app.include_router(lifecycle.router, dependencies=[Depends(require_access)])
 app.include_router(uploads.router, dependencies=[Depends(require_access)])
 app.include_router(intelligence.router, dependencies=[Depends(require_access)])
 app.include_router(drugs.router, dependencies=[Depends(require_access)])
+app.include_router(market.router, dependencies=[Depends(require_access)])
 
 
 @app.get("/")
 async def root():
     return {
-        "system": "Pharma BrandPlan AI Engine",
+        "system": "Molecule to Market AI Engine",
         "status": "Operational",
         "version": "1.0.0",
         "modules_active": 15,

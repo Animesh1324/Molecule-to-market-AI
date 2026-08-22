@@ -204,6 +204,76 @@ export interface CompetitorProfile {
   market_share_percentage: number;
   quadrant_x_efficacy: number;
   quadrant_y_safety_convenience: number;
+
+  // Provenance. "curated" rows carry hand-checked strategy text; "secondary_market"
+  // rows are measured sales facts from an ingested audit extract.
+  data_source?: 'curated' | 'secondary_market';
+  source_label?: string | null;
+
+  // Measured market facts, present only on secondary_market rows.
+  market_value?: number | null;
+  value_unit?: string | null;
+  market_value_prev?: number | null;
+  market_growth_percent?: number | null;
+  units_latest?: number | null;
+  ownership?: string | null;
+  pack_count?: number | null;
+  period?: string | null;
+  is_combination?: boolean;
+  therapy_group?: string | null;
+  subgroup?: string | null;
+}
+
+export interface ClassRival {
+  molecule_desc: string;
+  molecule_key?: string | null;
+  value_latest: number;
+  growth_percent?: number | null;
+  brand_count: number;
+  class_share_percent: number;
+}
+
+export interface CompanyShare {
+  company: string;
+  ownership?: string | null;
+  value_latest: number;
+  growth_percent?: number | null;
+  brand_count: number;
+  market_share_percent: number;
+}
+
+export interface MarketSummary {
+  has_data: boolean;
+  market?: string | null;
+  period?: string | null;
+  value_unit?: string | null;
+  market_size?: number | null;
+  market_size_prev?: number | null;
+  market_growth_percent?: number | null;
+  total_brands: number;
+  total_companies: number;
+  therapy_group?: string | null;
+  group_value?: number | null;
+  source_files: string[];
+}
+
+export interface MarketDataset {
+  id: string;
+  original_filename: string;
+  source_label: string;
+  market: string;
+  period_label?: string | null;
+  value_unit: string;
+  row_count: number;
+  brand_count: number;
+  molecule_count: number;
+  company_count: number;
+  total_value: number;
+  project_id?: string | null;
+  upload_file_id?: string | null;
+  status: string;
+  message?: string | null;
+  ingested_at: string;
 }
 
 export interface SWOTAnalysis {
@@ -219,6 +289,10 @@ export interface CompetitorIntelligence {
   swot_analysis: SWOTAnalysis;
   positioning_gap_summary: string;
   head_to_head_differentiators: string[];
+  market_summary: MarketSummary;
+  company_leaderboard: CompanyShare[];
+  class_rivals: ClassRival[];
+  data_sources: string[];
 }
 
 export interface ScenarioProjections {
@@ -442,6 +516,8 @@ export interface UploadedFile {
   content_type?: string | null;
   uploaded_at: string;
   note?: string | null;
+  /** 'queued' when the file was recognised as a market extract and is being parsed. */
+  market_ingest?: string | null;
 }
 
 // --- Patient experience (FDA FAERS) -----------------------------------------
@@ -622,4 +698,20 @@ export interface PMTAnalysis {
   target_physician_segment: string[];
   evidence_gaps: string[];
   source_records_used: string[];
+}
+
+
+export interface EvidenceLibrary {
+  molecule: string;
+  papers: ResearchPaper[];
+  /** What PubMed reports exists — always distinct from what is cached locally. */
+  total_available: number;
+  fetched_count: number;
+  returned: number;
+  offset: number;
+  limit: number;
+  complete: boolean;
+  source: string;
+  fetched_at?: string | null;
+  query?: string;
 }
